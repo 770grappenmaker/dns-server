@@ -1,6 +1,6 @@
 CFLAGS := -Wall -Wextra -Wno-pointer-sign -Wno-discarded-qualifiers -Wno-sign-compare
 CC := gcc
-LDFLAGS := 
+LDFLAGS := -Iinclude
 
 SRC_DIR := src
 OBJ_DIR := obj
@@ -14,19 +14,17 @@ BINARIES := dns_server
 
 BIN_OUTS := $(addprefix $(BIN_DIR)/,$(BINARIES))
 
+.PHONY: clean all
+
 all: $(BIN_OUTS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	@echo "CC $@"
-	@$(CC) $(CFLAGS) -c "$<" -o "$@"
-
-$(OBJ_DIR)/%.d: $(SRC_DIR)/%.c | $(OBJ_DIR)
-	@echo "DEP $@"
-	@$(CC) $(CCFLAGS) -MF"$@" -MG -MM -MP -MT"$@" -MT"$(<:.c=.o)" "$<"
+	@$(CC) $(LDFLAGS) $(CFLAGS) -MMD -MP -c "$<" -o "$@"
 
 $(BIN_OUTS): $(OBJS) | $(BIN_DIR)
 	@echo "LD $@"
-	@$(CC) $(LDFLAGS) $(CFLAGS) -o "$@" "$^"
+	@$(CC) $(LDFLAGS) $(CFLAGS) -o "$@" $^
 
 $(TEMP_DIRS):
 	@mkdir -p "$@"
@@ -34,4 +32,4 @@ $(TEMP_DIRS):
 clean:
 	rm -rf $(TEMP_DIRS)
 
-include $(DEPS)
+-include $(DEPS)
