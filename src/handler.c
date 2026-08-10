@@ -3,6 +3,7 @@
 #include "handler.h"
 #include "packet.h"
 #include "standard_names.h"
+#include "resolver.h"
 
 void connection_send(connection conn, char * buffer, size_t length) {
     sendto(conn.sockfd, buffer, length, 0, conn.remote_addr, conn.remote_addr_len);
@@ -44,6 +45,8 @@ void handle_packet(connection conn, char * buffer, size_t length) {
     memcpy(buffer, &resp_header, sizeof(resp_header));
     sb_append_buf(&response, buffer, sizeof(resp_header));
 
+    bool nxdomain = false;
+
     for (int i = 0; i < qcnt; i++) {
         strings name = {0};
         if (parse_name(&name, &sv)) return; // very broken remote, don't waste our efforts
@@ -66,23 +69,33 @@ void handle_packet(connection conn, char * buffer, size_t length) {
 
         printf("? " SV_Fmt " %s %s\n", SV_Arg(name_sv), clazz_to_name(clazz), type_to_name(type));
 
-        rr_footer response_ftr = {
-            .clazz = ftr.clazz,
-            .type = ftr.type,
-            .ttl = htonl(1000),
-        };
+        sb.count = 0;
+        rr res = query(q, sb);
 
-        char addr_rev[] = {127, 0, 0, 1};
-        rr response_rr = {
-            .name = name,
-            .footer = response_ftr,
-            .rdata = sv_from_parts(addr_rev, 4)
-        };
+        if (res.footer.type == 0) {
+            nxdomain = true;
+            goto free_loop;
+        }
 
-        write_rr(&response, response_rr);
+        write_rr(&response, res);
 
+    free_loop:
         sb_free(sb);
         da_free(name);
+        if (nxdomain) break;
+    }
+
+    if (nxdomain) {
+        response.count = 0;
+
+        dns_header resp_header = {
+            .tid = hdr.tid,
+            .flags = htons(0b1000000000000011),
+            0
+        };
+
+        memcpy(buffer, &resp_header, sizeof(resp_header));
+        sb_append_buf(&response, buffer, sizeof(resp_header));
     }
 
     connection_send(conn, response.items, response.count);
