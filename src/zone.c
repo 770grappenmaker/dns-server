@@ -20,6 +20,7 @@ int push_zonefile_line(String_View line) {
 
     String_View orig = line;
     String_View name = sv_chop_by_delim(&line, ' ');
+    line = sv_trim_left(line);
 
     if (line.count <= 0) {
         fprintf(stderr, "Warning: ignoring line '" SV_Fmt "': seems like no address or fully empty\n", SV_Arg(orig));
