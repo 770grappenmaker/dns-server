@@ -18,7 +18,6 @@ extern char * optarg;
 char * zonefile_path = NULL;
 
 static zonefile global_zonefile = {
-	.rrs = {0},
 	.ttl = 3600
 };
 

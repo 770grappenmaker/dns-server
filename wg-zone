@@ -1,22 +1,24 @@
-;$TTL = 60
+;$TTL=60
+;$ORIGIN=wg.
+
 ; IPv4
-trekbak.wg          IN  A       10.0.0.1
-rammelbak.wg        IN  A       10.0.0.2
-feduwu.wg           IN  A       10.0.0.3
-phone_2t.wg         IN  A       10.0.0.4
-koendoos.wg         IN  A       10.0.0.5
-frambozenbak.wg     IN  A       10.0.0.6
+trekbak          IN  A       10.0.0.1
+rammelbak        IN  A       10.0.0.2
+feduwu           IN  A       10.0.0.3
+phone_2t         IN  A       10.0.0.4
+koendoos         IN  A       10.0.0.5
+frambozenbak     IN  A       10.0.0.6
 
 ; IPv6
-trekbak.wg          IN  AAAA    2a01:4f8:c0c:4b0b::1
-rammelbak.wg        IN  AAAA    2a01:4f8:c0c:4b0b::2
-feduwu.wg           IN  AAAA    2a01:4f8:c0c:4b0b::3
-phone_2t.wg         IN  AAAA    2a01:4f8:c0c:4b0b::4
-koendoos.wg         IN  AAAA    2a01:4f8:c0c:4b0b::5
-frambozenbak.wg     IN  AAAA    2a01:4f8:c0c:4b0b::6
+trekbak          IN  AAAA    2a01:4f8:c0c:4b0b::1
+rammelbak        IN  AAAA    2a01:4f8:c0c:4b0b::2
+feduwu           IN  AAAA    2a01:4f8:c0c:4b0b::3
+phone_2t         IN  AAAA    2a01:4f8:c0c:4b0b::4
+koendoos         IN  AAAA    2a01:4f8:c0c:4b0b::5
+frambozenbak     IN  AAAA    2a01:4f8:c0c:4b0b::6
 
 ; CNAMEs
-mail.wg             IN  CNAME   trekbak.wg
+mail             IN  CNAME   trekbak.wg
 
 ; Misc
-rammelbak.wg        IN  TXT     "hawo"
+rammelbak        IN  TXT     "hawo"

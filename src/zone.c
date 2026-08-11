@@ -117,6 +117,7 @@ int push_zonefile_line(zonefile *file, String_View line) {
     
     strings da = {0};
     parse_name_str(&da, name);
+    da_append_da(&da, file->origin);
 
     String_Builder rdata = {0};
     if (parse_addr_str(&rdata, addr_str, type_str)) {
@@ -164,6 +165,12 @@ int parse_comment_directive_TTL(zonefile *file, String_View rhs) {
     return 0;
 }
 
+int parse_comment_directive_ORIGIN(zonefile *file, String_View rhs) {
+    file->origin.count = 0;
+    parse_name_str(&file->origin, rhs);
+    return 0;
+}
+
 int parse_comment_directive(zonefile *file, String_View comment) {
     comment = sv_trim(comment);
     if (comment.count <= 0 || comment.items[0] != DIRECTIVE_CHAR) return 0;
@@ -179,6 +186,7 @@ int parse_comment_directive(zonefile *file, String_View comment) {
     comment = sv_trim(comment);
 
     if (sv_eq(name, sv_from_cstr("TTL"))) return parse_comment_directive_TTL(file, comment);
+    if (sv_eq(name, sv_from_cstr("ORIGIN"))) return parse_comment_directive_ORIGIN(file, comment);
 
     fprintf(stderr, "Unsupported directive " SV_Fmt "\n", SV_Arg(name));
     return 1;
@@ -227,6 +235,7 @@ void reset_zonefile(zonefile *file) {
     }
     
     file->rrs.count = 0;
+    file->origin.count = 0;
 }
 
 int load_zonefile(zonefile *file, char * path) {

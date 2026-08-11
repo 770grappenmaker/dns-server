@@ -15,6 +15,7 @@ typedef struct {
 typedef struct {
     rrs rrs;
     uint16_t ttl;
+    strings origin;
 } zonefile;
 
 void reset_zonefile(zonefile *file);

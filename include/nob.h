@@ -377,6 +377,9 @@ NOBDEF void nob_dir_entry_close(Nob_Dir_Entry dir);
 
 #define nob_da_free(da) NOB_FREE((da).items)
 
+// Addendum koenoostveen 2026/08/11:
+#define nob_da_append_da(da, to_append) nob_da_append_many(da, (to_append).items, (to_append).count); 
+
 // Append several items to a dynamic array
 #define nob_da_append_many(da, new_items, new_items_count)                                      \
     do {                                                                                        \
@@ -3014,6 +3017,7 @@ NOBDEF char *nob_temp_running_executable_path(void)
         #define da_append nob_da_append
         #define da_free nob_da_free
         #define da_append_many nob_da_append_many
+        #define da_append_da nob_da_append_da
         #define da_resize nob_da_resize
         #define da_reserve nob_da_reserve
         #define da_last nob_da_last
