@@ -1,6 +1,15 @@
-trekbak.wg.         10.0.0.1
-rammelbak.wg.       10.0.0.2
-feduwu.wg.          10.0.0.3
-phone_2t.wg.        10.0.0.4
-koendoos.wg.        10.0.0.5
-frambozenbak.wg.    10.0.0.6
+; IPv4
+trekbak.wg          IN  A       10.0.0.1
+rammelbak.wg        IN  A       10.0.0.2
+feduwu.wg           IN  A       10.0.0.3
+phone_2t.wg         IN  A       10.0.0.4
+koendoos.wg         IN  A       10.0.0.5
+frambozenbak.wg     IN  A       10.0.0.6
+
+; IPv6
+trekbak.wg          IN  AAAA    2a01:4f8:c0c:4b0b::1
+rammelbak.wg        IN  AAAA    2a01:4f8:c0c:4b0b::2
+feduwu.wg           IN  AAAA    2a01:4f8:c0c:4b0b::3
+phone_2t.wg         IN  AAAA    2a01:4f8:c0c:4b0b::4
+koendoos.wg         IN  AAAA    2a01:4f8:c0c:4b0b::5
+frambozenbak.wg     IN  AAAA    2a01:4f8:c0c:4b0b::6

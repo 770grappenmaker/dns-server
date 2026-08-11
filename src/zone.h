@@ -12,6 +12,7 @@ typedef struct {
 
 void reset_zonefile();
 int load_zonefile(char * path);
+bool has_domain(strings name);
 rr *lookup_zonefile(question q);
 
 #endif
