@@ -46,6 +46,7 @@ int parse_name(strings *da, String_View *sv);
 
 void write_strings(String_Builder *dest, strings *name);
 void write_rr(String_Builder *dest, rr rr);
+void write_question(String_Builder *dest, question q);
 void write_short(String_Builder *dest, uint16_t value);
 void write_long(String_Builder *dest, uint32_t value);
 

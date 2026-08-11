@@ -35,21 +35,17 @@ void handle_packet(connection conn, char * buffer, size_t length) {
         return;
     }
 
-    String_Builder response = {0};
-    dns_header resp_header = {
-        .tid = hdr.tid,
-        .flags = htons(0b1000000000000000),
-        .answers_cnt = hdr.questions_cnt,
-    };
-
-    memcpy(buffer, &resp_header, sizeof(resp_header));
-    sb_append_buf(&response, buffer, sizeof(resp_header));
-
+    String_Builder answers_section = {0};
+    String_Builder questions_section = {0};
     bool nxdomain = false;
 
     for (int i = 0; i < qcnt; i++) {
         strings name = {0};
-        if (parse_name(&name, &sv)) return; // very broken remote, don't waste our efforts
+        if (parse_name(&name, &sv)) {
+            sb_free(name);
+            goto free_end;
+            return; // very broken remote, don't waste our efforts
+        }
         
         question_footer ftr;
         String_View ftr_sv = sv_chop_left(&sv, sizeof(ftr));
@@ -59,6 +55,8 @@ void handle_packet(connection conn, char * buffer, size_t length) {
             .name = name,
             .footer = ftr
         };
+
+        write_question(&questions_section, q);
         
         String_Builder sb = {0};
         sprint_name(&sb, &name);
@@ -74,30 +72,37 @@ void handle_packet(connection conn, char * buffer, size_t length) {
 
         if (res.footer.type == 0) {
             nxdomain = true;
-            goto free_loop;
+        } else {
+            write_rr(&answers_section, res);
         }
 
-        write_rr(&response, res);
-
-    free_loop:
         sb_free(sb);
         da_free(name);
-        if (nxdomain) break;
     }
+
+    String_Builder response = {0};
+    dns_header resp_header = {
+        .tid = hdr.tid,
+        .flags = htons(0b1000000000000000),
+        .answers_cnt = hdr.questions_cnt,
+        .questions_cnt = hdr.questions_cnt
+    };
 
     if (nxdomain) {
-        response.count = 0;
-
-        dns_header resp_header = {
-            .tid = hdr.tid,
-            .flags = htons(0b1000000000000011),
-            0
-        };
-
-        memcpy(buffer, &resp_header, sizeof(resp_header));
-        sb_append_buf(&response, buffer, sizeof(resp_header));
+        resp_header.flags = htons(0b1000000000000011),
+        resp_header.answers_cnt = 0;
+        answers_section.count = 0;
     }
 
+    memcpy(buffer, &resp_header, sizeof(resp_header));
+    sb_append_buf(&response, buffer, sizeof(resp_header));
+    sb_append_sv(&response, sb_to_sv(questions_section));
+    sb_append_sv(&response, sb_to_sv(answers_section));
+
     connection_send(conn, response.items, response.count);
+
+    free_end:
     sb_free(response);
+    sb_free(answers_section);
+    sb_free(questions_section);
 }

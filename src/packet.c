@@ -41,6 +41,14 @@ void write_rr(String_Builder *dest, rr v) {
     sb_append_sv(dest, v.rdata);
 }
 
+void write_question(String_Builder *dest, question v) {
+    write_strings(dest, &v.name);
+    
+    char temp[sizeof(question_footer)];
+    memcpy(&temp, &v.footer, sizeof(temp));
+    sb_append_buf(dest, temp, sizeof(temp));
+}
+
 void write_short(String_Builder *dest, uint16_t value) {
     sb_append(dest, (value >> 8) & 0xff);
     sb_append(dest, value & 0xff);
