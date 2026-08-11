@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
 			zonefile_path = strdup(optarg);
 
 			if (load_zonefile(optarg)) {
-				perror("load_zonefile");
+				fprintf(stderr, "load_zonefile failed\n");
 				return 1;
 			}
 

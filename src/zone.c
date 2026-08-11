@@ -42,9 +42,31 @@ int parse_addr_str_AAAA(String_Builder *rdata, String_View addr_str) {
     return 0;
 }
 
+int parse_addr_str_TXT(String_Builder *rdata, String_View addr_str) {
+    if (!sv_chop_prefix(&addr_str, sv_from_cstr("\""))) {
+        fprintf(stderr, "TXT record must start with quote (\")\n");
+        return 1;
+    }
+
+    if (!sv_chop_suffix(&addr_str, sv_from_cstr("\""))) {
+        fprintf(stderr, "TXT record must end with quote (\")\n");
+        return 1;
+    }
+    
+    if (addr_str.count >= 256) {
+        fprintf(stderr, "TXT record too long (must be at most 256 characters)\n");
+        return 1;
+    }
+
+    sb_append(rdata, addr_str.count);
+    sb_append_sv(rdata, addr_str);
+    return 0;
+}
+
 int parse_addr_str(String_Builder *rdata, String_View addr_str, String_View type_str) {
     if (sv_eq(type_str, sv_from_cstr("A"))) return parse_addr_str_A(rdata, addr_str);
     if (sv_eq(type_str, sv_from_cstr("AAAA"))) return parse_addr_str_AAAA(rdata, addr_str);
+    if (sv_eq(type_str, sv_from_cstr("TXT"))) return parse_addr_str_TXT(rdata, addr_str);
 
     fprintf(stderr, "Unsupported type '" SV_Fmt "'\n", SV_Arg(type_str));
     return 1;
@@ -86,7 +108,7 @@ int push_zonefile_line(String_View line) {
     line = sv_trim_left(line);
     print_empty("address");
 
-    String_View addr_str = sv_chop_by_delim(&line, ' ');
+    String_View addr_str = line;
     
     strings da = {0};
     parse_name_str(&da, name);
