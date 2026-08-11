@@ -7,13 +7,13 @@
     return a; \
 }
 
-answer query(question q, String_Builder rdata_sb) {
-    if (!has_domain(q.name)) {
+answer query(zonefile *zf, question q, String_Builder rdata_sb) {
+    if (!zonefile_has_domain(zf, q.name)) {
         printf("NXDOMAIN\n");
         return_empty(RCODE_NXDOMAIN);
     }
 
-    rr *result = lookup_zonefile(q);
+    rr *result = lookup_zonefile(zf, q);
     if (result == NULL) {
         printf("NO ANSWER\n");
         return_empty(RCODE_NOERROR);
@@ -30,7 +30,7 @@ answer query(question q, String_Builder rdata_sb) {
         
         question lower = q;
         lower.name = name_da;
-        result = lookup_zonefile(lower);
+        result = lookup_zonefile(zf, lower);
         da_free(name_da);
         
         if (result != NULL) da_append(&da, *result);

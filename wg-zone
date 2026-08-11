@@ -1,3 +1,4 @@
+;$TTL = 60
 ; IPv4
 trekbak.wg          IN  A       10.0.0.1
 rammelbak.wg        IN  A       10.0.0.2

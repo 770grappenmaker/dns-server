@@ -17,6 +17,11 @@
 extern char * optarg;
 char * zonefile_path = NULL;
 
+static zonefile global_zonefile = {
+	.rrs = {0},
+	.ttl = 3600
+};
+
 static void signal_handler(int sig) {
 	fprintf(stderr, "Got SIGHUP, attempting to reload zonefile\n");
 	if (zonefile_path == NULL) {
@@ -34,15 +39,16 @@ static void signal_handler(int sig) {
 	}
 	
 	fprintf(stderr, "Zonefile is at %s\n", resolved_path);
-	reset_zonefile();
+	reset_zonefile(&global_zonefile);
 	
-    if (load_zonefile(zonefile_path)) {
+    if (load_zonefile(&global_zonefile, zonefile_path)) {
 		fprintf(stderr, "Zonefile reload from %s failed!\n", resolved_path);
 		perror("load_zonefile");
 		return;
 	}
 
 	fprintf(stderr, "Zonefile reload from %s successful!\n", resolved_path);
+	fprintf(stderr, "%lu records loaded\n", global_zonefile.rrs.count);
 }
 
 int main(int argc, char *argv[])
@@ -64,10 +70,12 @@ int main(int argc, char *argv[])
 		case 'z':
 			zonefile_path = strdup(optarg);
 
-			if (load_zonefile(optarg)) {
+			if (load_zonefile(&global_zonefile, optarg)) {
 				fprintf(stderr, "load_zonefile failed\n");
 				return 1;
 			}
+
+			fprintf(stderr, "%lu records loaded\n", global_zonefile.rrs.count);
 
 			break;
 		default:
@@ -142,7 +150,7 @@ int main(int argc, char *argv[])
 			.remote_addr_len = remote_addr_len
 		};
 		
-		handle_packet(conn, buffer, read_bytes);
+		handle_packet(&global_zonefile, conn, buffer, read_bytes);
 	}
 
 	return 1;

@@ -11,7 +11,7 @@ void connection_send(connection conn, char * buffer, size_t length) {
     }
 }
 
-void handle_packet(connection conn, char * buffer, size_t length) {
+void handle_packet(zonefile *zf, connection conn, char * buffer, size_t length) {
     String_View sv = nob_sv_from_parts(buffer, length);
 
     dns_header hdr = {0};
@@ -71,7 +71,7 @@ void handle_packet(connection conn, char * buffer, size_t length) {
         printf("? " SV_Fmt " %s %s ", SV_Arg(name_sv), clazz_to_name(clazz), type_to_name(type));
 
         sb.count = 0;
-        answer a = query(q, sb);
+        answer a = query(zf, q, sb);
 
         if (a.rcode != RCODE_NOERROR) {
             rcode = a.rcode;

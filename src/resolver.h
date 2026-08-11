@@ -9,6 +9,6 @@ typedef struct {
     rrs rrs;
 } answer;
 
-answer query(question q, String_Builder rdata_sb);
+answer query(zonefile *zf, question q, String_Builder rdata_sb);
 
 #endif
