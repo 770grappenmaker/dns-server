@@ -4,6 +4,11 @@
 #include <stdint.h>
 #include <nob.h>
 
+#define RCODE_NOERROR 0
+#define RCODE_FORMERR 1
+#define RCODE_SERVFAIL 2
+#define RCODE_NXDOMAIN 3
+
 typedef struct __attribute__((__packed__)) {
     uint16_t tid;
     uint16_t flags;

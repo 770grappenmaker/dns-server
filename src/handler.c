@@ -39,7 +39,8 @@ void handle_packet(connection conn, char * buffer, size_t length) {
 
     String_Builder answers_section = {0};
     String_Builder questions_section = {0};
-    bool nxdomain = false;
+    uint8_t rcode = RCODE_NOERROR;
+    uint16_t answers_cnt = 0;
 
     for (int i = 0; i < qcnt; i++) {
         strings name = {0};
@@ -70,12 +71,13 @@ void handle_packet(connection conn, char * buffer, size_t length) {
         printf("? " SV_Fmt " %s %s ", SV_Arg(name_sv), clazz_to_name(clazz), type_to_name(type));
 
         sb.count = 0;
-        rr res = query(q, sb);
+        answer a = query(q, sb);
 
-        if (res.footer.type == 0) {
-            nxdomain = true;
-        } else {
-            write_rr(&answers_section, res);
+        if (a.rcode != RCODE_NOERROR) {
+            rcode = a.rcode;
+        } else if (a.rr.footer.type != 0) {
+            answers_cnt++;
+            write_rr(&answers_section, a.rr);
         }
 
         sb_free(sb);
@@ -85,16 +87,10 @@ void handle_packet(connection conn, char * buffer, size_t length) {
     String_Builder response = {0};
     dns_header resp_header = {
         .tid = hdr.tid,
-        .flags = htons(0b1000000000000000),
-        .answers_cnt = hdr.questions_cnt,
+        .flags = htons(0b1000000000000000 | (rcode & 0xf)),
+        .answers_cnt = htons(answers_cnt),
         .questions_cnt = hdr.questions_cnt
     };
-
-    if (nxdomain) {
-        resp_header.flags = htons(0b1000000000000011),
-        resp_header.answers_cnt = 0;
-        answers_section.count = 0;
-    }
 
     memcpy(buffer, &resp_header, sizeof(resp_header));
     sb_append_buf(&response, buffer, sizeof(resp_header));

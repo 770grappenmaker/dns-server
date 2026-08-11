@@ -3,6 +3,11 @@
 
 #include "packet.h"
 
-rr query(question q, String_Builder rdata_sb);
+typedef struct {
+    uint8_t rcode;
+    rr rr;
+} answer;
+
+answer query(question q, String_Builder rdata_sb);
 
 #endif
