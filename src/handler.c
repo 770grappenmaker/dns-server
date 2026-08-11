@@ -67,7 +67,7 @@ void handle_packet(connection conn, char * buffer, size_t length) {
         uint16_t clazz = ntohs(ftr.clazz);
         uint16_t type = ntohs(ftr.type);
 
-        printf("? " SV_Fmt " %s %s\n", SV_Arg(name_sv), clazz_to_name(clazz), type_to_name(type));
+        printf("? " SV_Fmt " %s %s ", SV_Arg(name_sv), clazz_to_name(clazz), type_to_name(type));
 
         sb.count = 0;
         rr res = query(q, sb);

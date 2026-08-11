@@ -45,3 +45,22 @@ void write_short(String_Builder *dest, uint16_t value) {
     sb_append(dest, (value >> 8) & 0xff);
     sb_append(dest, value & 0xff);
 }
+
+void write_long(String_Builder *dest, uint32_t value) {
+    sb_append(dest, (value >> 24) & 0xff);
+    sb_append(dest, (value >> 16) & 0xff);
+    sb_append(dest, (value >> 8) & 0xff);
+    sb_append(dest, value & 0xff);
+}
+
+bool strings_eq(strings first, strings second) {
+    if (first.count != second.count) return false;
+
+    for (int i = 0; i < first.count; i++) {
+        String_View fsv = first.items[i];
+        String_View ssv = second.items[i];
+        if (!sv_eq(fsv, ssv)) return false;
+    }
+
+    return true;
+}

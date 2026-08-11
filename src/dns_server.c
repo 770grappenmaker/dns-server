@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include "handler.h"
+#include "zone.h"
 
 #define NOB_IMPLEMENTATION
 #include <nob.h>
@@ -17,7 +18,7 @@ int main(int argc, char *argv[])
 	char *host = "0.0.0.0";
 	int port = 0;
 
-	while ((opt = getopt(argc, argv, "h:p:")) != -1)
+	while ((opt = getopt(argc, argv, "h:p:z:")) != -1)
 	{
 		switch (opt)
 		{
@@ -27,8 +28,14 @@ int main(int argc, char *argv[])
 		case 'p':
 			port = atoi(optarg);
 			break;
+		case 'z':
+			if (load_zonefile(optarg)) {
+				perror("load_zonefile");
+				return 1;
+			}
+			break;
 		default:
-			fprintf(stderr, "Usage: %s [-h host] [-p port]\n",
+			fprintf(stderr, "Usage: %s [-h host] [-p port] [-z zonefile]\n",
 					argv[0]);
 			exit(1);
 		}
