@@ -1,0 +1,17 @@
+#!/sbin/openrc-run
+
+name="$RC_SVCNAME"
+command="/usr/local/bin/dns_server"
+command_args="-h $BIND_HOST -p $BIND_PORT -z $ZONEFILE"
+command_background="true"
+pidfile="/run/$RC_SVCNAME.pid"
+error_log="/var/log/dns_server.log"
+
+extra_started_commands="reload"
+description_reload="Reload zonefile"
+
+reload() {
+	ebegin "Reloading $RC_SVCNAME"
+	start_pre && start-stop-daemon --signal HUP --pidfile $pidfile
+	eend $?
+}

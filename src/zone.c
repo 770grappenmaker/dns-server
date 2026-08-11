@@ -13,9 +13,18 @@ void parse_name_str(strings *da, String_View name) {
 }
 
 int push_zonefile_line(String_View line) {
-    String_View name = sv_chop_by_delim(&line, ' ');
     sv_chop_suffix(&line, sv_from_cstr("\n"));
     sv_chop_suffix(&line, sv_from_cstr("\r"));
+
+    if (line.count <= 0) return 0;
+
+    String_View orig = line;
+    String_View name = sv_chop_by_delim(&line, ' ');
+
+    if (line.count <= 0) {
+        fprintf(stderr, "Warning: ignoring line '" SV_Fmt "': seems like no address or fully empty\n", SV_Arg(orig));
+        return 0;
+    }
 
     String_Builder sb = {0};
     sb_append_sv(&sb, line);

@@ -26,7 +26,7 @@ static void signal_handler(int sig) {
 
 	char resolved_path[4097];
 	char *res = realpath(zonefile_path, resolved_path);
-	
+
 	if (res == NULL) {
 		fprintf(stderr, "Path resolution of filename %s failed! Does it exist?\n", zonefile_path);
 		perror("realpath");
@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
 	}
 
 	struct in_addr addr;
-	if (!inet_pton(AF_INET, host, &addr)) {
+	if (inet_pton(AF_INET, host, &addr) != 1) {
 		perror("inet_pton");
 		return 1;
 	}
