@@ -12,6 +12,6 @@ description_reload="Reload zonefile"
 
 reload() {
 	ebegin "Reloading $RC_SVCNAME"
-	start_pre && start-stop-daemon --signal HUP --pidfile $pidfile
+	start-stop-daemon --signal HUP --pidfile $pidfile
 	eend $?
 }

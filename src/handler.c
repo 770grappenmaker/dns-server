@@ -6,7 +6,9 @@
 #include "resolver.h"
 
 void connection_send(connection conn, char * buffer, size_t length) {
-    sendto(conn.sockfd, buffer, length, 0, conn.remote_addr, conn.remote_addr_len);
+    if (sendto(conn.sockfd, buffer, length, 0, conn.remote_addr, conn.remote_addr_len) == -1) {
+        perror("sendto");
+    }
 }
 
 void handle_packet(connection conn, char * buffer, size_t length) {

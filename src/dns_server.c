@@ -122,22 +122,28 @@ int main(int argc, char *argv[])
 
 	int read_bytes;
 	struct sockaddr_in remote_addr;
-	socklen_t remote_addr_len;
+	socklen_t remote_addr_len = sizeof(remote_addr);
 
 	char buffer[4096];
 
-	while ((read_bytes = recvfrom(sock_fd, buffer, sizeof(buffer), MSG_WAITALL, (struct sockaddr *) &remote_addr, &remote_addr_len)) != -1) {
-		if (read_bytes <= 0) continue;
+	for (;;) {
+		remote_addr_len = sizeof(remote_addr);
 
+		if ((read_bytes = recvfrom(sock_fd, buffer, sizeof(buffer), MSG_WAITALL, (struct sockaddr *) &remote_addr, &remote_addr_len)) == -1) {
+			perror("recvfrom");
+			continue;
+		}
+
+		if (read_bytes <= 0) continue;
+		
 		connection conn = {
 			.sockfd = sock_fd,
 			.remote_addr = (struct sockaddr *) &remote_addr,
 			.remote_addr_len = remote_addr_len
 		};
-
+		
 		handle_packet(conn, buffer, read_bytes);
 	}
 
-	perror("recvfrom");
 	return 1;
 }
