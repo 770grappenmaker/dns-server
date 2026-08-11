@@ -2,10 +2,11 @@
 #define RESOLVER_H_
 
 #include "packet.h"
+#include "zone.h"
 
 typedef struct {
     uint8_t rcode;
-    rr rr;
+    rrs rrs;
 } answer;
 
 answer query(question q, String_Builder rdata_sb);

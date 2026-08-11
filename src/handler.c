@@ -75,9 +75,10 @@ void handle_packet(connection conn, char * buffer, size_t length) {
 
         if (a.rcode != RCODE_NOERROR) {
             rcode = a.rcode;
-        } else if (a.rr.footer.type != 0) {
-            answers_cnt++;
-            write_rr(&answers_section, a.rr);
+        } else {
+            answers_cnt += a.rrs.count;
+            da_foreach(rr, curr, &a.rrs) write_rr(&answers_section, *curr);
+            da_free(a.rrs);
         }
 
         sb_free(sb);

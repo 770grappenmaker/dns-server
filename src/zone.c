@@ -63,10 +63,19 @@ int parse_addr_str_TXT(String_Builder *rdata, String_View addr_str) {
     return 0;
 }
 
+int parse_addr_str_CNAME(String_Builder *rdata, String_View addr_str) {
+    strings da = {0};
+    parse_name_str(&da, addr_str);
+    write_strings(rdata, &da);
+    da_free(da);
+    return 0;
+}
+
 int parse_addr_str(String_Builder *rdata, String_View addr_str, String_View type_str) {
     if (sv_eq(type_str, sv_from_cstr("A"))) return parse_addr_str_A(rdata, addr_str);
     if (sv_eq(type_str, sv_from_cstr("AAAA"))) return parse_addr_str_AAAA(rdata, addr_str);
     if (sv_eq(type_str, sv_from_cstr("TXT"))) return parse_addr_str_TXT(rdata, addr_str);
+    if (sv_eq(type_str, sv_from_cstr("CNAME"))) return parse_addr_str_CNAME(rdata, addr_str);
 
     fprintf(stderr, "Unsupported type '" SV_Fmt "'\n", SV_Arg(type_str));
     return 1;
@@ -240,9 +249,11 @@ bool has_domain(strings name) {
 }
 
 rr *lookup_zonefile(question q) {
+    bool is_cnamable = htons(q.footer.type) == 1 || htons(q.footer.type) == 28;
+
     da_foreach(rr, curr, &loaded_rrs) {
         if (q.footer.clazz != curr->footer.clazz) continue;
-        if (q.footer.type != curr->footer.type) continue;
+        if (q.footer.type != curr->footer.type && !(is_cnamable && htons(curr->footer.type) == 5)) continue;
         if (!strings_eq(q.name, curr->name)) continue;
         return curr;
     }

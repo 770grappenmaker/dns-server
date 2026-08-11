@@ -14,4 +14,8 @@ phone_2t.wg         IN  AAAA    2a01:4f8:c0c:4b0b::4
 koendoos.wg         IN  AAAA    2a01:4f8:c0c:4b0b::5
 frambozenbak.wg     IN  AAAA    2a01:4f8:c0c:4b0b::6
 
+; CNAMEs
+mail.wg             IN  CNAME   trekbak.wg
+
+; Misc
 rammelbak.wg        IN  TXT     "hawo"

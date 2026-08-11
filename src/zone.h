@@ -15,4 +15,6 @@ int load_zonefile(char * path);
 bool has_domain(strings name);
 rr *lookup_zonefile(question q);
 
+void parse_name_str(strings *da, String_View name);
+
 #endif
