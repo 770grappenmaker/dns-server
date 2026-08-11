@@ -71,6 +71,15 @@ int push_zonefile(String_Builder *sb, String_View *read) {
     return 0;
 }
 
+void reset_zonefile() {
+    da_foreach(rr, curr, &loaded_rrs) {
+        da_free(curr->name);
+        free(curr->rdata.data);
+    }
+
+    loaded_rrs.count = 0;
+}
+
 int load_zonefile(char * path) {
     FILE * fd = fopen(path, "r");
     if (fd == NULL) {

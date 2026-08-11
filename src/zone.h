@@ -10,6 +10,7 @@ typedef struct {
     size_t capacity;
 } rrs;
 
+void reset_zonefile();
 int load_zonefile(char * path);
 rr *lookup_zonefile(question q);
 

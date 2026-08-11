@@ -1,7 +1,11 @@
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
+#include <signal.h>
+#include <limits.h>
+
 #include "handler.h"
 #include "zone.h"
 
@@ -11,6 +15,35 @@
 #define BACKLOG 100
 
 extern char * optarg;
+char * zonefile_path = NULL;
+
+static void signal_handler(int sig) {
+	fprintf(stderr, "Got SIGHUP, attempting to reload zonefile\n");
+	if (zonefile_path == NULL) {
+		fprintf(stderr, "Refusing to reload zone as there is no file loaded\n");
+		return;
+	}
+
+	char resolved_path[4097];
+	char *res = realpath(zonefile_path, resolved_path);
+	
+	if (res == NULL) {
+		fprintf(stderr, "Path resolution of filename %s failed! Does it exist?\n", zonefile_path);
+		perror("realpath");
+		return;
+	}
+	
+	fprintf(stderr, "Zonefile is at %s\n", resolved_path);
+	reset_zonefile();
+	
+    if (load_zonefile(zonefile_path)) {
+		fprintf(stderr, "Zonefile reload from %s failed!\n", resolved_path);
+		perror("load_zonefile");
+		return;
+	}
+
+	fprintf(stderr, "Zonefile reload from %s successful!\n", resolved_path);
+}
 
 int main(int argc, char *argv[])
 {
@@ -29,10 +62,13 @@ int main(int argc, char *argv[])
 			port = atoi(optarg);
 			break;
 		case 'z':
+			zonefile_path = strdup(optarg);
+
 			if (load_zonefile(optarg)) {
 				perror("load_zonefile");
 				return 1;
 			}
+
 			break;
 		default:
 			fprintf(stderr, "Usage: %s [-h host] [-p port] [-z zonefile]\n",
@@ -81,6 +117,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+	signal(SIGHUP, signal_handler);
 	fprintf(stderr, "Listening on %s:%d\n", host, ntohs(listen_addr.sin_port));
 
 	int read_bytes;
