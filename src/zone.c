@@ -5,6 +5,8 @@
 #include <arpa/inet.h>
 
 int parse_addr_str_A(String_Builder *rdata, String_View addr_str) {
+    addr_str = sv_trim(addr_str);
+
     String_Builder sb = {0};
     sb_append_sv(&sb, addr_str);
     sb_append_null(&sb);
@@ -23,6 +25,8 @@ int parse_addr_str_A(String_Builder *rdata, String_View addr_str) {
 }
 
 int parse_addr_str_AAAA(String_Builder *rdata, String_View addr_str) {
+    addr_str = sv_trim(addr_str);
+
     String_Builder sb = {0};
     sb_append_sv(&sb, addr_str);
     sb_append_null(&sb);
@@ -65,8 +69,36 @@ int parse_addr_str_TXT(String_Builder *rdata, String_View addr_str) {
 }
 
 int parse_addr_str_CNAME(String_Builder *rdata, strings *cname, String_View addr_str) {
+    addr_str = sv_trim(addr_str);
     parse_name_str(cname, addr_str);
     write_strings(rdata, cname);
+    return 0;
+}
+
+int parse_addr_str_MX(String_Builder *rdata, String_View addr_str) {
+    addr_str = sv_trim(addr_str);
+    String_View prio_str = sv_chop_by_delim(&addr_str, ' ');
+
+    String_Builder sb = {0};
+    sb_append_sv(&sb, prio_str);
+    sb_append_null(&sb);
+
+    int prio = atoi(sb.items);
+    sb_free(sb);
+
+    if (prio <= 0 || prio >= UINT16_MAX) {
+        fprintf(stderr, "Invalid MX record priority\n");
+        return 1;
+    } 
+
+    write_short(rdata, prio);
+
+    strings dest = {0};
+    addr_str = sv_trim(addr_str);
+    parse_name_str(&dest, addr_str);
+    write_strings(rdata, &dest);
+
+    da_free(dest);
     return 0;
 }
 
@@ -75,6 +107,7 @@ int parse_addr_str(String_Builder *rdata, strings *cname, String_View addr_str, 
     if (sv_eq(type_str, sv_from_cstr("AAAA"))) return parse_addr_str_AAAA(rdata, addr_str);
     if (sv_eq(type_str, sv_from_cstr("TXT"))) return parse_addr_str_TXT(rdata, addr_str);
     if (sv_eq(type_str, sv_from_cstr("CNAME"))) return parse_addr_str_CNAME(rdata, cname, addr_str);
+    if (sv_eq(type_str, sv_from_cstr("MX"))) return parse_addr_str_MX(rdata, addr_str);
 
     fprintf(stderr, "Unsupported type '" SV_Fmt "'\n", SV_Arg(type_str));
     return 1;
