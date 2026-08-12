@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "zone.h"
 #include "packet.h"
+#include "util.h"
 #include "standard_names.h"
 #include <arpa/inet.h>
 
@@ -102,12 +103,91 @@ int parse_addr_str_MX(String_Builder *rdata, String_View addr_str) {
     return 0;
 }
 
+#define parse_srv_part(name, var) \
+    addr_str = sv_trim_left(addr_str); \
+    part_str = sv_chop_by_delim(&addr_str, ' '); \
+    \
+    sb.count = 0; \
+    sb_append_sv(&sb, part_str); \
+    sb_append_null(&sb); \
+    \
+    int var = atoi(sb.items); \
+    \
+    if (var <= 0 || var >= UINT16_MAX) { \
+        fprintf(stderr, "Invalid SRV record " name "\n"); \
+        return 1; \
+    }
+
+int parse_addr_str_SRV(String_Builder *rdata, String_View addr_str) {
+    String_View part_str;
+    String_Builder sb = {0};
+
+    addr_str = sv_trim(addr_str);
+    parse_srv_part("priority", prio);
+    parse_srv_part("weight", weight);
+    parse_srv_part("port", port);
+
+    write_short(rdata, prio);
+    write_short(rdata, weight);
+    write_short(rdata, port);
+
+    strings dest = {0};
+    addr_str = sv_trim(addr_str);
+    parse_name_str(&dest, addr_str);
+    write_strings(rdata, &dest);
+
+    da_free(dest);
+    sb_free(sb);
+    return 0;
+}
+
+#define parse_tlsa_part(name, var) \
+    addr_str = sv_trim_left(addr_str); \
+    part_str = sv_chop_by_delim(&addr_str, ' '); \
+    \
+    sb.count = 0; \
+    sb_append_sv(&sb, part_str); \
+    sb_append_null(&sb); \
+    \
+    errno = 0; \
+    int var = strtol(sb.items, NULL, 10); \
+    \
+    if (errno || var < 0 || var >= UINT8_MAX) { \
+        fprintf(stderr, "Invalid TLSA record " name "\n"); \
+        return 1; \
+    }
+
+int parse_addr_str_TLSA(String_Builder *rdata, String_View addr_str) {
+    String_View part_str;
+    String_Builder sb = {0};
+
+    addr_str = sv_trim(addr_str);
+    parse_tlsa_part("usage", usage);
+    parse_tlsa_part("selector", selector);
+    parse_tlsa_part("type", type);
+
+    sb_append(rdata, usage);
+    sb_append(rdata, selector);
+    sb_append(rdata, type);
+
+    addr_str = sv_trim(addr_str);
+    if (parse_hex(rdata, addr_str)) {
+        fprintf(stderr, "Illegal TLSA hex data\n");
+        return 1;
+    }
+
+    sb_free(sb);
+    return 0;
+}
+
 int parse_addr_str(String_Builder *rdata, strings *cname, String_View addr_str, String_View type_str) {
     if (sv_eq(type_str, sv_from_cstr("A"))) return parse_addr_str_A(rdata, addr_str);
     if (sv_eq(type_str, sv_from_cstr("AAAA"))) return parse_addr_str_AAAA(rdata, addr_str);
     if (sv_eq(type_str, sv_from_cstr("TXT"))) return parse_addr_str_TXT(rdata, addr_str);
     if (sv_eq(type_str, sv_from_cstr("CNAME"))) return parse_addr_str_CNAME(rdata, cname, addr_str);
     if (sv_eq(type_str, sv_from_cstr("MX"))) return parse_addr_str_MX(rdata, addr_str);
+    if (sv_eq(type_str, sv_from_cstr("SRV"))) return parse_addr_str_SRV(rdata, addr_str);
+    if (sv_eq(type_str, sv_from_cstr("TLSA"))) return parse_addr_str_TLSA(rdata, addr_str);
 
     fprintf(stderr, "Unsupported type '" SV_Fmt "'\n", SV_Arg(type_str));
     return 1;
