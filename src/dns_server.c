@@ -15,39 +15,40 @@
 #define BACKLOG 100
 
 extern char * optarg;
-char * zonefile_path = NULL;
+static zonefiles global_zonefiles = {0};
+static rrs global_rrs = {0};
 
-static zonefile global_zonefile = {
-	.ttl = 3600
-};
+static void reload_zonefiles() {
+	global_rrs.count = 0;
+	
+	char resolved_path[4097];
+	da_foreach(zonefile, zf, &global_zonefiles) {
+		if (zf->loaded_path == NULL) continue;
+		
+		char *res = realpath(zf->loaded_path, resolved_path);
+		
+		if (res == NULL) {
+			fprintf(stderr, "Path resolution of filename %s failed! Does it exist?\n", zf->loaded_path);
+			perror("realpath");
+			return;
+		}
+		
+		reset_zonefile(zf);
+		
+    	if (load_zonefile(zf, zf->loaded_path)) {
+			fprintf(stderr, "Zonefile reload from %s failed!\n", resolved_path);
+			return;
+		}
+		
+		da_append_da(&global_rrs, zf->rrs);
+		fprintf(stderr, "Zonefile reload from %s successful!\n", resolved_path);
+		fprintf(stderr, "%lu records loaded\n", zf->rrs.count);
+	}
+}
 
 static void signal_handler(int sig) {
-	fprintf(stderr, "Got SIGHUP, attempting to reload zonefile\n");
-	if (zonefile_path == NULL) {
-		fprintf(stderr, "Refusing to reload zone as there is no file loaded\n");
-		return;
-	}
-
-	char resolved_path[4097];
-	char *res = realpath(zonefile_path, resolved_path);
-
-	if (res == NULL) {
-		fprintf(stderr, "Path resolution of filename %s failed! Does it exist?\n", zonefile_path);
-		perror("realpath");
-		return;
-	}
-	
-	fprintf(stderr, "Zonefile is at %s\n", resolved_path);
-	reset_zonefile(&global_zonefile);
-	
-    if (load_zonefile(&global_zonefile, zonefile_path)) {
-		fprintf(stderr, "Zonefile reload from %s failed!\n", resolved_path);
-		perror("load_zonefile");
-		return;
-	}
-
-	fprintf(stderr, "Zonefile reload from %s successful!\n", resolved_path);
-	fprintf(stderr, "%lu records loaded\n", global_zonefile.rrs.count);
+	fprintf(stderr, "Got SIGHUP, attempting to reload zonefiles\n");
+	reload_zonefiles();
 }
 
 int main(int argc, char *argv[])
@@ -67,14 +68,9 @@ int main(int argc, char *argv[])
 			port = atoi(optarg);
 			break;
 		case 'z':
-			zonefile_path = strdup(optarg);
-
-			if (load_zonefile(&global_zonefile, optarg)) {
-				fprintf(stderr, "load_zonefile failed\n");
-				return 1;
-			}
-
-			fprintf(stderr, "%lu records loaded\n", global_zonefile.rrs.count);
+			char * zonefile_path = strdup(optarg);
+			zonefile zf = { .ttl = 3600, .loaded_path = zonefile_path };
+			da_append(&global_zonefiles, zf);
 
 			break;
 		default:
@@ -83,6 +79,8 @@ int main(int argc, char *argv[])
 			exit(1);
 		}
 	}
+
+	reload_zonefiles();
 
 	struct in_addr addr;
 	if (inet_pton(AF_INET, host, &addr) != 1) {
@@ -149,7 +147,7 @@ int main(int argc, char *argv[])
 			.remote_addr_len = remote_addr_len
 		};
 		
-		handle_packet(&global_zonefile, conn, buffer, read_bytes);
+		handle_packet(&global_rrs, conn, buffer, read_bytes);
 	}
 
 	return 1;

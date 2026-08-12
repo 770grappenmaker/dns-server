@@ -290,24 +290,3 @@ freeing:
 
     return err;
 }
-
-bool zonefile_has_domain(zonefile *file, strings name) {
-    da_foreach(rr, curr, &file->rrs) {
-        if (strings_eq(name, curr->name)) return true;
-    }
-
-    return false;
-}
-
-rr *lookup_zonefile(zonefile *file, question q) {
-    bool is_cnamable = htons(q.footer.type) == 1 || htons(q.footer.type) == 28;
-
-    da_foreach(rr, curr, &file->rrs) {
-        if (q.footer.clazz != curr->footer.clazz) continue;
-        if (q.footer.type != curr->footer.type && !(is_cnamable && htons(curr->footer.type) == 5)) continue;
-        if (!strings_eq(q.name, curr->name)) continue;
-        return curr;
-    }
-
-    return NULL;
-}

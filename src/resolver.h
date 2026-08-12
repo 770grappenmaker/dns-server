@@ -9,6 +9,9 @@ typedef struct {
     rrs rrs;
 } answer;
 
-answer query(zonefile *zf, question q, String_Builder rdata_sb);
+answer query(rrs *rrs, question q, String_Builder rdata_sb);
+
+bool rrs_has_domain(rrs *rrs, strings name);
+rr *rrs_lookup(rrs *rrs, question q);
 
 #endif

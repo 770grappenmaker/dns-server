@@ -1,5 +1,4 @@
 #include "resolver.h"
-#include "zone.h"
 #include <arpa/inet.h>
 
 #define return_empty(code) { \
@@ -7,13 +6,13 @@
     return a; \
 }
 
-answer query(zonefile *zf, question q, String_Builder rdata_sb) {
-    if (!zonefile_has_domain(zf, q.name)) {
+answer query(rrs *rrs_from, question q, String_Builder rdata_sb) {
+    if (!rrs_has_domain(rrs_from, q.name)) {
         printf("NXDOMAIN\n");
         return_empty(RCODE_NXDOMAIN);
     }
 
-    rr *result = lookup_zonefile(zf, q);
+    rr *result = rrs_lookup(rrs_from, q);
     if (result == NULL) {
         printf("NO ANSWER\n");
         return_empty(RCODE_NOERROR);
@@ -30,7 +29,7 @@ answer query(zonefile *zf, question q, String_Builder rdata_sb) {
         
         question lower = q;
         lower.name = name_da;
-        result = lookup_zonefile(zf, lower);
+        result = rrs_lookup(rrs_from, lower);
         da_free(name_da);
         
         if (result != NULL) da_append(&da, *result);
@@ -39,4 +38,25 @@ answer query(zonefile *zf, question q, String_Builder rdata_sb) {
     answer a = { .rrs = da, .rcode = RCODE_NOERROR };
     printf("NOERROR (%lu answers)\n", da.count);
     return a;
+}
+
+bool rrs_has_domain(rrs *rrs, strings name) {
+    da_foreach(rr, curr, rrs) {
+        if (strings_eq(name, curr->name)) return true;
+    }
+
+    return false;
+}
+
+rr *rrs_lookup(rrs *rrs, question q) {
+    bool is_cnamable = htons(q.footer.type) == 1 || htons(q.footer.type) == 28;
+
+    da_foreach(rr, curr, rrs) {
+        if (q.footer.clazz != curr->footer.clazz) continue;
+        if (q.footer.type != curr->footer.type && !(is_cnamable && htons(curr->footer.type) == 5)) continue;
+        if (!strings_eq(q.name, curr->name)) continue;
+        return curr;
+    }
+
+    return NULL;
 }
