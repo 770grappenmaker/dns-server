@@ -72,3 +72,16 @@ bool strings_eq(strings first, strings second) {
 
     return true;
 }
+
+bool strings_eq_fromidx(strings first, strings second, int start) {
+    if (first.count != second.count) return false;
+    if (start >= first.count) return false;
+
+    for (int i = start; i < first.count; i++) {
+        String_View fsv = first.items[i];
+        String_View ssv = second.items[i];
+        if (!sv_eq(fsv, ssv)) return false;
+    }
+
+    return true;
+}

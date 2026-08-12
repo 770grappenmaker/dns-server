@@ -67,7 +67,6 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, size_t length)
         String_View name_sv = sb_to_sv(sb);
         uint16_t clazz = ntohs(ftr.clazz);
         uint16_t type = ntohs(ftr.type);
-
         printf("? " SV_Fmt " %s %s ", SV_Arg(name_sv), clazz_to_name(clazz), type_to_name(type));
 
         sb.count = 0;

@@ -12,6 +12,6 @@ typedef struct {
 answer query(rrs *rrs, question q, String_Builder rdata_sb);
 
 bool rrs_has_domain(rrs *rrs, strings name);
-rr *rrs_lookup(rrs *rrs, question q);
+int rrs_lookup(rrs *rrs, question q, rr *result);
 
 #endif

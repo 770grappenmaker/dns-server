@@ -39,6 +39,7 @@ typedef struct {
     strings name;
     rr_footer footer;
     String_View rdata;
+    strings cname;
 } rr;
 
 typedef struct {
@@ -56,5 +57,6 @@ void write_short(String_Builder *dest, uint16_t value);
 void write_long(String_Builder *dest, uint32_t value);
 
 bool strings_eq(strings first, strings second);
+bool strings_eq_fromidx(strings first, strings second, int start);
 
 #endif

@@ -41,39 +41,40 @@ int parse_addr_str_AAAA(String_Builder *rdata, String_View addr_str) {
 }
 
 int parse_addr_str_TXT(String_Builder *rdata, String_View addr_str) {
-    if (!sv_chop_prefix(&addr_str, sv_from_cstr("\""))) {
-        fprintf(stderr, "TXT record must start with quote (\")\n");
-        return 1;
+    while (addr_str.count > 0) {
+        addr_str = sv_trim_left(addr_str);
+        if (addr_str.count == 0) break;
+
+        if (!sv_chop_prefix(&addr_str, sv_from_cstr("\""))) {
+            fprintf(stderr, "TXT record must start with quote (\")\n");
+            return 1;
+        }
+
+        String_View txt_content = sv_chop_by_delim(&addr_str, '"');
+
+        if (txt_content.count >= 256) {
+            fprintf(stderr, "TXT record part too long (must be at most 256 characters)\n");
+            return 1;
+        }
+
+        sb_append(rdata, txt_content.count);
+        sb_append_sv(rdata, txt_content);
     }
 
-    if (!sv_chop_suffix(&addr_str, sv_from_cstr("\""))) {
-        fprintf(stderr, "TXT record must end with quote (\")\n");
-        return 1;
-    }
-    
-    if (addr_str.count >= 256) {
-        fprintf(stderr, "TXT record too long (must be at most 256 characters)\n");
-        return 1;
-    }
-
-    sb_append(rdata, addr_str.count);
-    sb_append_sv(rdata, addr_str);
     return 0;
 }
 
-int parse_addr_str_CNAME(String_Builder *rdata, String_View addr_str) {
-    strings da = {0};
-    parse_name_str(&da, addr_str);
-    write_strings(rdata, &da);
-    da_free(da);
+int parse_addr_str_CNAME(String_Builder *rdata, strings *cname, String_View addr_str) {
+    parse_name_str(cname, addr_str);
+    write_strings(rdata, cname);
     return 0;
 }
 
-int parse_addr_str(String_Builder *rdata, String_View addr_str, String_View type_str) {
+int parse_addr_str(String_Builder *rdata, strings *cname, String_View addr_str, String_View type_str) {
     if (sv_eq(type_str, sv_from_cstr("A"))) return parse_addr_str_A(rdata, addr_str);
     if (sv_eq(type_str, sv_from_cstr("AAAA"))) return parse_addr_str_AAAA(rdata, addr_str);
     if (sv_eq(type_str, sv_from_cstr("TXT"))) return parse_addr_str_TXT(rdata, addr_str);
-    if (sv_eq(type_str, sv_from_cstr("CNAME"))) return parse_addr_str_CNAME(rdata, addr_str);
+    if (sv_eq(type_str, sv_from_cstr("CNAME"))) return parse_addr_str_CNAME(rdata, cname, addr_str);
 
     fprintf(stderr, "Unsupported type '" SV_Fmt "'\n", SV_Arg(type_str));
     return 1;
@@ -120,7 +121,9 @@ int push_zonefile_line(zonefile *file, String_View line) {
     da_append_da(&da, file->origin);
 
     String_Builder rdata = {0};
-    if (parse_addr_str(&rdata, addr_str, type_str)) {
+    strings cname = {0};
+
+    if (parse_addr_str(&rdata, &cname, addr_str, type_str)) {
         fprintf(stderr, "Failed to parse address of record on line: " SV_Fmt "\n", SV_Arg(orig));
         return 1;
     }
@@ -132,7 +135,8 @@ int push_zonefile_line(zonefile *file, String_View line) {
             .type = htons(sv_to_type(type_str)),
             .ttl = htonl(file->ttl)
         },
-        .rdata = sb_to_sv(rdata)
+        .rdata = sb_to_sv(rdata),
+        .cname = cname
     };
 
     if (parsed_rr.footer.clazz == 0) {
@@ -192,37 +196,48 @@ int parse_comment_directive(zonefile *file, String_View comment) {
     return 1;
 }
 
-int push_zonefile(zonefile *file, String_Builder *sb, String_Builder *comment_buffer, bool *zonefile_comment, String_View *read) {
+typedef struct {
+    zonefile *file;
+    String_Builder *content_buffer;
+    String_Builder *comment_buffer;
+    bool *is_comment;
+    bool *is_quoted;
+} zonefile_parser;
+
+int push_zonefile(zonefile_parser parser, String_View *read) {
     while (read->count > 0) {
         char c = read->items[0];
         sv_chop_left(read, 1);
 
-        if (c == ';') {
-            *zonefile_comment = true;
+        if (c == ';' && !(*parser.is_quoted)) {
+            *parser.is_comment = true;
             continue;
         }
 
+        if (c == '"') *parser.is_quoted = !(*parser.is_quoted);
+
         if (c == '\n') {
-            if (*zonefile_comment && parse_comment_directive(file, sb_to_sv(*comment_buffer))) {
+            if (*parser.is_comment && parse_comment_directive(parser.file, sb_to_sv(*parser.comment_buffer))) {
                 return 1;
             }
 
-            *zonefile_comment = false;
+            *parser.is_comment = false;
+            *parser.is_quoted = false;
 
-            if (push_zonefile_line(file, sb_to_sv(*sb))) {
+            if (push_zonefile_line(parser.file, sb_to_sv(*parser.content_buffer))) {
                 return 1;
             }
 
             String_Builder new_sb = {0};
-            *sb = new_sb;
+            *parser.content_buffer = new_sb;
 
             String_Builder new_sb2 = {0};
-            *comment_buffer = new_sb2;
+            *parser.comment_buffer = new_sb2;
 
             continue;
         }
 
-        sb_append(*zonefile_comment ? comment_buffer : sb, c);
+        sb_append(*parser.is_comment ? parser.comment_buffer : parser.content_buffer, c);
     }
 
     return 0;
@@ -231,6 +246,7 @@ int push_zonefile(zonefile *file, String_Builder *sb, String_Builder *comment_bu
 void reset_zonefile(zonefile *file) {
     da_foreach(rr, curr, &file->rrs) {
         da_free(curr->name);
+        da_free(curr->cname);
         free(curr->rdata.data);
     }
     
@@ -247,10 +263,20 @@ int load_zonefile(zonefile *file, char * path) {
 
     char buffer[1024];
     size_t read_bytes;
-    String_Builder sb = {0};
-    String_Builder comment_buffer = {0};
 
+    String_Builder content_buffer = {0};
+    String_Builder comment_buffer = {0};
     bool is_comment = false;
+    bool is_quoted = false;
+    
+    zonefile_parser parser = {
+        .content_buffer = &content_buffer,
+        .comment_buffer = &comment_buffer,
+        .file = file,
+        .is_comment = &is_comment,
+        .is_quoted = &is_quoted
+    };
+
     int err = 0;
 
     while ((read_bytes = fread(buffer, 1, sizeof(buffer), fd))) {
@@ -263,14 +289,14 @@ int load_zonefile(zonefile *file, char * path) {
         if (read_bytes <= 0) continue;
 
         String_View sv = sv_from_parts(buffer, read_bytes);
-        if (push_zonefile(file, &sb, &comment_buffer, &is_comment, &sv)) {
+        if (push_zonefile(parser, &sv)) {
             err = -1;
             goto freeing;
         }
 
         if (feof(fd)) {
             String_View sv = sv_from_cstr("\n");
-            if (push_zonefile(file, &sb, &comment_buffer, &is_comment, &sv)) {
+            if (push_zonefile(parser, &sv)) {
                 err = -1;
                 goto freeing;
             }
@@ -280,7 +306,7 @@ int load_zonefile(zonefile *file, char * path) {
     }
 
 freeing:
-    sb_free(sb);
+    sb_free(content_buffer);
     sb_free(comment_buffer);
 
     if (fclose(fd) == EOF) {
