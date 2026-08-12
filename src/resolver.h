@@ -9,7 +9,7 @@ typedef struct {
     rrs rrs;
 } answer;
 
-answer query(rrs *rrs, question q, String_Builder rdata_sb);
+answer query(rrs *rrs, question q);
 
 bool rrs_has_domain(rrs *rrs, strings name);
 void rrs_lookup(rrs *rrs_from, question q, rrs *result);

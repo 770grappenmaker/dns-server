@@ -1,1 +1,30 @@
-google.com. IN  A   142.250.180.14
+; Comments are supported
+; Here are some directives
+;$TTL = 86400
+; Also supported: $ORIGIN = something., but this does not work fantastically yet
+
+; All sorts of records are supported!
+; A/AAAA records
+example.org.                    IN  A       198.51.100.123
+mx.example.org.                 IN  A       198.51.100.123
+example.org.                    IN  AAAA    2001:db8:cafe:babe::1
+
+; CNAME records
+test.example.org.               IN  CNAME   mx.example.org.
+
+; MX records
+example.org.                    IN  MX  10  mx.example.org.
+
+; TLSA records
+_25._tcp.mx.example.org.        IN  TLSA    3 0 1 cd244a384a23dca6585712749b3319e9e09e7314aea0091a7ffb939f1816caa2
+
+; SRV records
+_imaps._tcp.example.org.          IN  SRV  10  1  993  mx.example.org.
+_imap._tcp.example.org.           IN  SRV  10  1  143  mx.example.org.
+_submissions._tcp.example.org.    IN  SRV  10  1  465  mx.example.org.
+_submission._tcp.example.org.     IN  SRV  10  1  587  mx.example.org.
+
+; TXT records, multiple for the same name too!
+example.org.           IN    TXT    "v=spf1 mx:example.org -all"
+example.org.           IN    TXT    "google-site-verification=this is obviously not a real token"
+_dmarc.example.org.    IN    TXT    "v=DMARC1; p=quarantine"

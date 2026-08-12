@@ -70,7 +70,7 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, size_t length)
         printf("? " SV_Fmt " %s %s ", SV_Arg(name_sv), clazz_to_name(clazz), type_to_name(type));
 
         sb.count = 0;
-        answer a = query(rrs_from, q, sb);
+        answer a = query(rrs_from, q);
 
         if (a.rcode != RCODE_NOERROR) {
             rcode = a.rcode;

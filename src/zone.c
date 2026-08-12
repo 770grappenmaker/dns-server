@@ -270,10 +270,10 @@ int parse_comment_directive_TTL(zonefile *file, String_View rhs) {
     String_Builder sb = {0};
     sb_append_sv(&sb, rhs);
     sb_append_null(&sb);
-    int res = atoi(sb.items);
+    long res = strtoll(sb.items, NULL, 10);
     sb_free(sb);
 
-    if (res <= 0 || res >= UINT16_MAX) {
+    if (res <= 0 || res >= UINT32_MAX) {
         fprintf(stderr, "Invalid TTL: " SV_Fmt "\n", SV_Arg(rhs));
         return 1;
     }

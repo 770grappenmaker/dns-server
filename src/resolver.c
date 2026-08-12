@@ -8,7 +8,7 @@
     return a; \
 }
 
-answer query(rrs *rrs_from, question q, String_Builder rdata_sb) {
+answer query(rrs *rrs_from, question q) {
     if (!rrs_has_domain(rrs_from, q.name)) {
         printf("NXDOMAIN\n");
         return_empty(RCODE_NXDOMAIN);

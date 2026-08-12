@@ -47,6 +47,7 @@ static void reload_zonefiles() {
 }
 
 static void signal_handler(int sig) {
+	if (sig != SIGHUP) return;
 	fprintf(stderr, "Got SIGHUP, attempting to reload zonefiles\n");
 	reload_zonefiles();
 }

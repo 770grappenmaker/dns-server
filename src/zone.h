@@ -14,7 +14,7 @@ typedef struct {
 
 typedef struct {
     rrs rrs;
-    uint16_t ttl;
+    uint32_t ttl;
     strings origin;
     char * loaded_path;
 } zonefile;
