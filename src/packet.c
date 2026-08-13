@@ -85,3 +85,7 @@ bool strings_eq_fromidx(strings first, strings second, int start) {
 
     return true;
 }
+
+void strings_dup_shallow(strings *dst, strings src) {
+    da_foreach(String_View, curr, &src) da_append(dst, *curr);
+}

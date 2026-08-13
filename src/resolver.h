@@ -6,12 +6,15 @@
 
 typedef struct {
     uint8_t rcode;
-    rrs rrs;
+    rrs answers;
+    rrs additional;
 } answer;
 
 answer query(rrs *rrs, question q);
 
 bool rrs_has_domain(rrs *rrs, strings name);
 void rrs_lookup(rrs *rrs_from, question q, rrs *result);
+
+void write_and_free_rr(String_Builder *dest, rr v);
 
 #endif

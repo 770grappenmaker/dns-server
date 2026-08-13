@@ -59,4 +59,6 @@ void write_long(String_Builder *dest, uint32_t value);
 bool strings_eq(strings first, strings second);
 bool strings_eq_fromidx(strings first, strings second, int start);
 
+void strings_dup_shallow(strings *dst, strings src);
+
 #endif

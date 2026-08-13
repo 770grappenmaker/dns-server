@@ -28,3 +28,7 @@ _submission._tcp.example.org.     IN  SRV  10  1  587  mx.example.org.
 example.org.           IN    TXT    "v=spf1 mx:example.org -all"
 example.org.           IN    TXT    "google-site-verification=this is obviously not a real token"
 _dmarc.example.org.    IN    TXT    "v=DMARC1; p=quarantine"
+
+; Wildcards are also supported!
+*.example.org.          IN    CNAME  fallback.example.org.
+fallback.example.org.   IN    CNAME  example.org.

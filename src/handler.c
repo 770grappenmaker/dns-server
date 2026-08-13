@@ -38,9 +38,12 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, size_t length)
     }
 
     String_Builder answers_section = {0};
+    String_Builder additional_section = {0};
     String_Builder questions_section = {0};
+
     uint8_t rcode = RCODE_NOERROR;
     uint16_t answers_cnt = 0;
+    uint16_t additional_cnt = 0;
 
     for (int i = 0; i < qcnt; i++) {
         strings name = {0};
@@ -75,9 +78,12 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, size_t length)
         if (a.rcode != RCODE_NOERROR) {
             rcode = a.rcode;
         } else {
-            answers_cnt += a.rrs.count;
-            da_foreach(rr, curr, &a.rrs) write_rr(&answers_section, *curr);
-            da_free(a.rrs);
+            answers_cnt += a.answers.count;
+            additional_cnt += a.additional.count;
+            da_foreach(rr, curr, &a.answers) write_and_free_rr(&answers_section, *curr);
+            da_foreach(rr, curr, &a.additional) write_and_free_rr(&additional_section, *curr);
+            da_free(a.answers);
+            da_free(a.additional);
         }
 
         sb_free(sb);
@@ -89,6 +95,7 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, size_t length)
         .tid = hdr.tid,
         .flags = htons(0b1000000000000000 | (rcode & 0xf)),
         .answers_cnt = htons(answers_cnt),
+        .additional_cnt = htons(additional_cnt),
         .questions_cnt = hdr.questions_cnt
     };
 
@@ -96,6 +103,7 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, size_t length)
     sb_append_buf(&response, buffer, sizeof(resp_header));
     sb_append_sv(&response, sb_to_sv(questions_section));
     sb_append_sv(&response, sb_to_sv(answers_section));
+    sb_append_sv(&response, sb_to_sv(additional_section));
 
     connection_send(conn, response.items, response.count);
 
@@ -103,4 +111,5 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, size_t length)
     sb_free(response);
     sb_free(answers_section);
     sb_free(questions_section);
+    sb_free(additional_section);
 }
