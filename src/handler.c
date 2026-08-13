@@ -21,6 +21,7 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, size_t length)
     uint16_t flags = ntohs(hdr.flags);
     int opcode = (flags >> 11) & 0xf;
     int qr = flags >> 15;
+    int rd = (flags >> 8) & 1;
 
     if (qr != 0) return; // do not even reply, waste of time, very bad remote
 
@@ -28,7 +29,7 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, size_t length)
     if (opcode != 0 || hdr.answers_cnt != 0 || hdr.authority_cnt != 0 || qcnt > 5) {
         dns_header resp_header = {
             .tid = hdr.tid,
-            .flags = htons(0b1000000000000001),
+            .flags = htons(0b1000000000000001 | (rd << 8)),
             0
         };
 
@@ -93,7 +94,7 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, size_t length)
     String_Builder response = {0};
     dns_header resp_header = {
         .tid = hdr.tid,
-        .flags = htons(0b1000000000000000 | (rcode & 0xf)),
+        .flags = htons(0b1000010000000000 | (rcode & 0xf) | (rd << 8)),
         .answers_cnt = htons(answers_cnt),
         .additional_cnt = htons(additional_cnt),
         .questions_cnt = hdr.questions_cnt
