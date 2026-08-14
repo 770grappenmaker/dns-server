@@ -1,5 +1,6 @@
 #include "packet.h"
 #include "handler.h"
+#include <string.h>
 
 int parse_name(strings *da, String_View *sv) {
     char label_len;
@@ -61,13 +62,15 @@ void write_long(String_Builder *dest, uint32_t value) {
     sb_append(dest, value & 0xff);
 }
 
+// Does not care about upper/lowercase differences
 bool strings_eq(strings first, strings second) {
     if (first.count != second.count) return false;
 
     for (int i = 0; i < first.count; i++) {
         String_View fsv = first.items[i];
         String_View ssv = second.items[i];
-        if (!sv_eq(fsv, ssv)) return false;
+        if (fsv.count != ssv.count) return false;
+        if (strncasecmp(fsv.items, ssv.items, fsv.count) != 0) return false;
     }
 
     return true;
