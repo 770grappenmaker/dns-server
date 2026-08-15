@@ -68,7 +68,7 @@ answer query(rrs *rrs_from, question q) {
         additional_q.footer = additional_q_ftr;
         rrs_lookup(rrs_from, additional_q, &additional);
     }
-    
+
     answer a = { .answers = answers, .additional = additional, .rcode = RCODE_NOERROR };
     printf("NOERROR (%lu answers, %lu additional)\n", answers.count, additional.count);
     return a;

@@ -8,6 +8,7 @@
 #define RCODE_FORMERR 1
 #define RCODE_SERVFAIL 2
 #define RCODE_NXDOMAIN 3
+#define RCODE_BADVERS 16
 
 typedef struct __attribute__((__packed__)) {
     uint16_t tid;
@@ -46,6 +47,11 @@ typedef struct {
     strings name;
     question_footer footer;
 } question;
+
+typedef struct __attribute__((__packed__)) {
+    uint16_t code;
+    uint16_t length;
+} edns_option_hdr;
 
 void sprint_name(String_Builder *dest, strings *name);
 int parse_name(strings *da, String_View *sv);
