@@ -5,7 +5,9 @@
 #include "standard_names.h"
 #include <arpa/inet.h>
 
-int parse_addr_str_A(String_Builder *rdata, String_View addr_str) {
+#define printf_parser_error(fmt, ...) fprintf(stderr, "Parser error at line %lu, col %lu: " fmt, *parser.row, *parser.col __VA_OPT__(,) __VA_ARGS__)
+
+int parse_addr_str_A(zonefile_parser parser, String_Builder *rdata, String_View addr_str) {
     addr_str = sv_trim(addr_str);
 
     String_Builder sb = {0};
@@ -25,7 +27,7 @@ int parse_addr_str_A(String_Builder *rdata, String_View addr_str) {
     return 0;
 }
 
-int parse_addr_str_AAAA(String_Builder *rdata, String_View addr_str) {
+int parse_addr_str_AAAA(zonefile_parser parser, String_Builder *rdata, String_View addr_str) {
     addr_str = sv_trim(addr_str);
 
     String_Builder sb = {0};
@@ -36,6 +38,7 @@ int parse_addr_str_AAAA(String_Builder *rdata, String_View addr_str) {
     if (inet_pton(AF_INET6, sb.items, &parsed) != 1) {
         sb_free(sb);
         perror("while parsing zonefile address: inet_pton");
+        printf_parser_error("IPv6 Address parsing failed, see above log entry");
         return 1;
     }
     
@@ -45,20 +48,20 @@ int parse_addr_str_AAAA(String_Builder *rdata, String_View addr_str) {
     return 0;
 }
 
-int parse_addr_str_TXT(String_Builder *rdata, String_View addr_str) {
+int parse_addr_str_TXT(zonefile_parser parser, String_Builder *rdata, String_View addr_str) {
     while (addr_str.count > 0) {
         addr_str = sv_trim_left(addr_str);
         if (addr_str.count == 0) break;
 
         if (!sv_chop_prefix(&addr_str, sv_from_cstr("\""))) {
-            fprintf(stderr, "TXT record must start with quote (\")\n");
+            printf_parser_error("TXT record must start with quote (\")\n");
             return 1;
         }
 
         String_View txt_content = sv_chop_by_delim(&addr_str, '"');
 
         if (txt_content.count >= 256) {
-            fprintf(stderr, "TXT record part too long (must be at most 256 characters)\n");
+            printf_parser_error("TXT record part too long (must be at most 256 characters)\n");
             return 1;
         }
 
@@ -69,14 +72,14 @@ int parse_addr_str_TXT(String_Builder *rdata, String_View addr_str) {
     return 0;
 }
 
-int parse_addr_str_CNAME(String_Builder *rdata, strings *cname, String_View addr_str) {
+int parse_addr_str_CNAME(zonefile_parser parser, String_Builder *rdata, strings *cname, String_View addr_str) {
     addr_str = sv_trim(addr_str);
     parse_name_str(cname, addr_str);
     write_strings(rdata, cname);
     return 0;
 }
 
-int parse_addr_str_MX(String_Builder *rdata, String_View addr_str) {
+int parse_addr_str_MX(zonefile_parser parser, String_Builder *rdata, String_View addr_str) {
     addr_str = sv_trim(addr_str);
     String_View prio_str = sv_chop_by_delim(&addr_str, ' ');
 
@@ -88,7 +91,7 @@ int parse_addr_str_MX(String_Builder *rdata, String_View addr_str) {
     sb_free(sb);
 
     if (prio <= 0 || prio >= UINT16_MAX) {
-        fprintf(stderr, "Invalid MX record priority\n");
+        printf_parser_error("Invalid MX record priority\n");
         return 1;
     } 
 
@@ -114,11 +117,11 @@ int parse_addr_str_MX(String_Builder *rdata, String_View addr_str) {
     int var = atoi(sb.items); \
     \
     if (var <= 0 || var >= UINT16_MAX) { \
-        fprintf(stderr, "Invalid SRV record " name "\n"); \
+        printf_parser_error("Invalid SRV record " name "\n"); \
         return 1; \
     }
 
-int parse_addr_str_SRV(String_Builder *rdata, String_View addr_str) {
+int parse_addr_str_SRV(zonefile_parser parser, String_Builder *rdata, String_View addr_str) {
     String_View part_str;
     String_Builder sb = {0};
 
@@ -153,11 +156,11 @@ int parse_addr_str_SRV(String_Builder *rdata, String_View addr_str) {
     int var = strtol(sb.items, NULL, 10); \
     \
     if (errno || var < 0 || var >= UINT8_MAX) { \
-        fprintf(stderr, "Invalid TLSA record " name "\n"); \
+        printf_parser_error("Invalid TLSA record " name "\n"); \
         return 1; \
     }
 
-int parse_addr_str_TLSA(String_Builder *rdata, String_View addr_str) {
+int parse_addr_str_TLSA(zonefile_parser parser, String_Builder *rdata, String_View addr_str) {
     String_View part_str;
     String_Builder sb = {0};
 
@@ -180,16 +183,16 @@ int parse_addr_str_TLSA(String_Builder *rdata, String_View addr_str) {
     return 0;
 }
 
-int parse_addr_str(String_Builder *rdata, strings *cname, String_View addr_str, String_View type_str) {
-    if (sv_eq(type_str, sv_from_cstr("A"))) return parse_addr_str_A(rdata, addr_str);
-    if (sv_eq(type_str, sv_from_cstr("AAAA"))) return parse_addr_str_AAAA(rdata, addr_str);
-    if (sv_eq(type_str, sv_from_cstr("TXT"))) return parse_addr_str_TXT(rdata, addr_str);
-    if (sv_eq(type_str, sv_from_cstr("CNAME"))) return parse_addr_str_CNAME(rdata, cname, addr_str);
-    if (sv_eq(type_str, sv_from_cstr("MX"))) return parse_addr_str_MX(rdata, addr_str);
-    if (sv_eq(type_str, sv_from_cstr("SRV"))) return parse_addr_str_SRV(rdata, addr_str);
-    if (sv_eq(type_str, sv_from_cstr("TLSA"))) return parse_addr_str_TLSA(rdata, addr_str);
+int parse_addr_str(zonefile_parser parser, String_Builder *rdata, strings *cname, String_View addr_str, String_View type_str) {
+    if (sv_eq(type_str, sv_from_cstr("A"))) return parse_addr_str_A(parser, rdata, addr_str);
+    if (sv_eq(type_str, sv_from_cstr("AAAA"))) return parse_addr_str_AAAA(parser, rdata, addr_str);
+    if (sv_eq(type_str, sv_from_cstr("TXT"))) return parse_addr_str_TXT(parser, rdata, addr_str);
+    if (sv_eq(type_str, sv_from_cstr("CNAME"))) return parse_addr_str_CNAME(parser, rdata, cname, addr_str);
+    if (sv_eq(type_str, sv_from_cstr("MX"))) return parse_addr_str_MX(parser, rdata, addr_str);
+    if (sv_eq(type_str, sv_from_cstr("SRV"))) return parse_addr_str_SRV(parser, rdata, addr_str);
+    if (sv_eq(type_str, sv_from_cstr("TLSA"))) return parse_addr_str_TLSA(parser, rdata, addr_str);
 
-    fprintf(stderr, "Unsupported type '" SV_Fmt "'\n", SV_Arg(type_str));
+    printf_parser_error("Unsupported type '" SV_Fmt "'\n", SV_Arg(type_str));
     return 1;
 }
 
@@ -202,12 +205,12 @@ void parse_name_str(strings *da, String_View name) {
 
 #define print_empty(type) { \
     if (line.count <= 0) { \
-        fprintf(stderr, "Warning: ignoring line '" SV_Fmt "': seems like no " type " present\n", SV_Arg(orig)); \
+        printf_parser_error("Warning: ignoring line '" SV_Fmt "': seems like no " type " present\n", SV_Arg(orig)); \
         return 0; \
     } \
 }
 
-int push_zonefile_line(zonefile *file, String_View line) {
+int push_zonefile_line(zonefile_parser parser, zonefile *file, String_View line) {
     sv_chop_suffix(&line, sv_from_cstr("\n"));
     sv_chop_suffix(&line, sv_from_cstr("\r"));
     
@@ -236,8 +239,8 @@ int push_zonefile_line(zonefile *file, String_View line) {
     String_Builder rdata = {0};
     strings cname = {0};
 
-    if (parse_addr_str(&rdata, &cname, addr_str, type_str)) {
-        fprintf(stderr, "Failed to parse address of record on line: " SV_Fmt "\n", SV_Arg(orig));
+    if (parse_addr_str(parser, &rdata, &cname, addr_str, type_str)) {
+        printf_parser_error("Failed to parse address of record on line: " SV_Fmt "\n", SV_Arg(orig));
         return 1;
     }
 
@@ -253,12 +256,12 @@ int push_zonefile_line(zonefile *file, String_View line) {
     };
 
     if (parsed_rr.footer.clazz == 0) {
-        fprintf(stderr, "Failed to parse class of record on line: " SV_Fmt "\n", SV_Arg(orig));
+        printf_parser_error("Failed to parse class of record on line: " SV_Fmt "\n", SV_Arg(orig));
         return 1;
     }
 
     if (parsed_rr.footer.type == 0) {
-        fprintf(stderr, "Failed to parse type of record on line: " SV_Fmt "\n", SV_Arg(orig));
+        printf_parser_error("Failed to parse type of record on line: " SV_Fmt "\n", SV_Arg(orig));
         return 1;
     }
 
@@ -266,7 +269,7 @@ int push_zonefile_line(zonefile *file, String_View line) {
     return 0;
 }
 
-int parse_comment_directive_TTL(zonefile *file, String_View rhs) {
+int parse_comment_directive_TTL(zonefile_parser parser, zonefile *file, String_View rhs) {
     String_Builder sb = {0};
     sb_append_sv(&sb, rhs);
     sb_append_null(&sb);
@@ -274,7 +277,7 @@ int parse_comment_directive_TTL(zonefile *file, String_View rhs) {
     sb_free(sb);
 
     if (res <= 0 || res >= UINT32_MAX) {
-        fprintf(stderr, "Invalid TTL: " SV_Fmt "\n", SV_Arg(rhs));
+        printf_parser_error("Invalid TTL: " SV_Fmt "\n", SV_Arg(rhs));
         return 1;
     }
 
@@ -282,19 +285,19 @@ int parse_comment_directive_TTL(zonefile *file, String_View rhs) {
     return 0;
 }
 
-int parse_comment_directive_ORIGIN(zonefile *file, String_View rhs) {
+int parse_comment_directive_ORIGIN(zonefile_parser parser, zonefile *file, String_View rhs) {
     file->origin.count = 0;
     parse_name_str(&file->origin, rhs);
     return 0;
 }
 
-int parse_comment_directive(zonefile *file, String_View comment) {
+int parse_comment_directive(zonefile_parser parser, zonefile *file, String_View comment) {
     comment = sv_trim(comment);
     if (comment.count <= 0 || comment.items[0] != DIRECTIVE_CHAR) return 0;
     
     sv_chop_left(&comment, 1);
     if (comment.count <= 0) {
-        fprintf(stderr, "Directive start ($) but nothing to be seen afterwards...\n");
+        printf_parser_error("Directive start ($) but nothing to be seen afterwards...\n");
         return 1;
     }
 
@@ -302,25 +305,65 @@ int parse_comment_directive(zonefile *file, String_View comment) {
     name = sv_trim(name);
     comment = sv_trim(comment);
 
-    if (sv_eq(name, sv_from_cstr("TTL"))) return parse_comment_directive_TTL(file, comment);
-    if (sv_eq(name, sv_from_cstr("ORIGIN"))) return parse_comment_directive_ORIGIN(file, comment);
+    if (sv_eq(name, sv_from_cstr("TTL"))) return parse_comment_directive_TTL(parser, file, comment);
+    if (sv_eq(name, sv_from_cstr("ORIGIN"))) return parse_comment_directive_ORIGIN(parser, file, comment);
 
-    fprintf(stderr, "Unsupported directive " SV_Fmt "\n", SV_Arg(name));
+    printf_parser_error("Unsupported directive " SV_Fmt "\n", SV_Arg(name));
     return 1;
 }
 
-typedef struct {
-    zonefile *file;
-    String_Builder *content_buffer;
-    String_Builder *comment_buffer;
-    bool *is_comment;
-    bool *is_quoted;
-} zonefile_parser;
+int end_record_parse(zonefile_parser parser) {
+    *parser.is_comment = false;
+    *parser.is_quoted = false;
+
+    if (push_zonefile_line(parser, parser.file, sb_to_sv(*parser.content_buffer))) {
+        return 1;
+    }
+
+    String_Builder new_sb = {0};
+    *parser.content_buffer = new_sb;
+
+    String_Builder new_sb2 = {0};
+    *parser.comment_buffer = new_sb2;
+
+    return 0;
+}
 
 int push_zonefile(zonefile_parser parser, String_View *read) {
     while (read->count > 0) {
         char c = read->items[0];
         sv_chop_left(read, 1);
+
+        if (c == '\n') {
+            *parser.row = *parser.row + 1;
+            *parser.col = 1;
+        } else {
+            *parser.col = *parser.col + 1;
+        }
+
+        if (!(*parser.is_comment) && !(*parser.is_quoted) && c == '(') {
+            if (*parser.is_multiline) {
+                printf_parser_error("Multiline record may not be nested\n");
+                return 1;
+            }
+
+            *parser.is_multiline = true;
+            continue;
+        }
+
+        if (!(*parser.is_comment) && !(*parser.is_quoted) && c == ')') {
+            if (!(*parser.is_multiline)) {
+                printf_parser_error("Multiline record start ( missing\n");
+                return 1;
+            }
+
+            *parser.is_multiline = false;
+            if (end_record_parse(parser)) {
+                return 1;
+            }
+
+            continue;
+        }
 
         if (c == ';' && !(*parser.is_quoted)) {
             *parser.is_comment = true;
@@ -330,22 +373,18 @@ int push_zonefile(zonefile_parser parser, String_View *read) {
         if (c == '"') *parser.is_quoted = !(*parser.is_quoted);
 
         if (c == '\n') {
-            if (*parser.is_comment && parse_comment_directive(parser.file, sb_to_sv(*parser.comment_buffer))) {
+            if (*parser.is_comment && parse_comment_directive(parser, parser.file, sb_to_sv(*parser.comment_buffer))) {
                 return 1;
             }
 
-            *parser.is_comment = false;
-            *parser.is_quoted = false;
-
-            if (push_zonefile_line(parser.file, sb_to_sv(*parser.content_buffer))) {
-                return 1;
+            if (*parser.is_multiline && !(*parser.is_comment)) {
+                sb_append(parser.content_buffer, ' ');
+                continue;
             }
 
-            String_Builder new_sb = {0};
-            *parser.content_buffer = new_sb;
-
-            String_Builder new_sb2 = {0};
-            *parser.comment_buffer = new_sb2;
+            if (end_record_parse(parser)) {
+                return 1;
+            }
 
             continue;
         }
@@ -381,13 +420,19 @@ int load_zonefile(zonefile *file, char * path) {
     String_Builder comment_buffer = {0};
     bool is_comment = false;
     bool is_quoted = false;
+    bool is_multiline = false;
+    size_t row = 1;
+    size_t col = 1;
     
     zonefile_parser parser = {
         .content_buffer = &content_buffer,
         .comment_buffer = &comment_buffer,
         .file = file,
         .is_comment = &is_comment,
-        .is_quoted = &is_quoted
+        .is_quoted = &is_quoted,
+        .is_multiline = &is_multiline,
+        .row = &row,
+        .col = &col
     };
 
     int err = 0;
