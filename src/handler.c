@@ -7,29 +7,42 @@
 
 #define MIN(x, y) (((x) < (y) ? (x) : (y)))
 
-void connection_send(connection conn, char * buffer, size_t length) {
-    if (sendto(conn.sockfd, buffer, length, 0, conn.remote_addr, conn.remote_addr_len) == -1) {
-        perror("sendto");
+void connection_send(connection conn, char * buffer, ssize_t length) {
+    if (conn.remote_addr_len != 0) {
+        if (sendto(conn.sockfd, buffer, length, 0, conn.remote_addr, conn.remote_addr_len) == -1) {
+            perror("sendto");
+        }
+    } else {
+        size_t total = 0;
+        while (total < length) {
+            size_t sent = send(conn.sockfd, buffer + total, length - total, 0);
+            if (sent == -1) {
+                perror("send");
+                return;
+            }
+
+            total += sent;
+        }
     }
 }
 
-void handle_packet(rrs *rrs_from, connection conn, char * buffer, size_t length) {
+void handle_packet(rrs *rrs_from, connection conn, char * buffer, ssize_t length, bool tcp) {
     // Initial header parsing and checks
     String_View sv = nob_sv_from_parts(buffer, length);
-
+    
     dns_header hdr = {0};
     if (sv.count < sizeof(hdr)) return;
-
+    
     memcpy(&hdr, buffer, sizeof(hdr));
     sv_chop_left(&sv, sizeof(hdr));
-
+    
     uint16_t flags = ntohs(hdr.flags);
     int opcode = (flags >> 11) & 0xf;
     int qr = flags >> 15;
     int rd = (flags >> 8) & 1;
-
+    
     if (qr != 0) return; // do not even reply, waste of time, very bad remote
-
+    
     // read question counts, quit early if it is too big
     uint16_t qcnt = ntohs(hdr.questions_cnt);
     uint16_t acnt = ntohs(hdr.additional_cnt);
@@ -39,17 +52,18 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, size_t length)
             .flags = htons(0b1000000000000001 | (rd << 8)),
             0
         };
-
+        
         memcpy(buffer, &resp_header, sizeof(resp_header));
         connection_send(conn, buffer, sizeof(resp_header));
         return;
     }
-
+    
     // organise responses into sections
     String_Builder answers_section = {0};
     String_Builder additional_section = {0};
     String_Builder questions_section = {0};
-
+    String_Builder response = {0};
+    
     uint8_t rcode = RCODE_NOERROR;
     uint16_t rcode_ext = RCODE_NOERROR;
     uint16_t answers_cnt = 0;
@@ -214,31 +228,38 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, size_t length)
     }
 
     // build final response
-    String_Builder response = {0};
     dns_header resp_header = {
         .tid = hdr.tid,
         .flags = htons(0b1000010000000000 | ((seen_edns ? rcode_ext : rcode) & 0xf) | (rd << 8)),
-        .answers_cnt = htons(answers_cnt),
-        .additional_cnt = htons(additional_cnt),
-        .questions_cnt = hdr.questions_cnt
+        0
     };
 
-    memcpy(buffer, &resp_header, sizeof(resp_header));
-    sb_append_buf(&response, buffer, sizeof(resp_header));
+    response.count += sizeof(resp_header) + (tcp ? 2 : 0);
 
     // truncation handling while writing sections
     // TODO: individual RRS and TCP
-    #define RESP_OR_TRUNCATE(sv) { \
-        if (response.count + sv.count >= mtu) { \
+    #define RESP_OR_TRUNCATE(sv, block) { \
+        if (!tcp && response.count + sv.count >= mtu) { \
             resp_header.flags |= htons(1 << 9); \
         } else { \
             sb_append_sv(&response, (sv)); \
+            {block;}; \
         } \
     }
 
-    RESP_OR_TRUNCATE(sb_to_sv(questions_section));
-    RESP_OR_TRUNCATE(sb_to_sv(answers_section));
-    RESP_OR_TRUNCATE(sb_to_sv(additional_section));
+    RESP_OR_TRUNCATE(sb_to_sv(questions_section), resp_header.questions_cnt = hdr.questions_cnt);
+    RESP_OR_TRUNCATE(sb_to_sv(answers_section), resp_header.answers_cnt = htons(answers_cnt));
+    RESP_OR_TRUNCATE(sb_to_sv(additional_section), resp_header.additional_cnt = htons(additional_cnt));
+
+    // copy header into response
+    memcpy(response.items + (tcp ? 2 : 0), &resp_header, sizeof(resp_header));
+
+    // copy size into response if tcp and send
+    if (tcp) {
+        uint16_t len = response.count - 2;
+        len = htons(len);
+        memcpy(response.items, &len, 2);
+    }
 
     connection_send(conn, response.items, response.count);
 

@@ -52,6 +52,103 @@ static void signal_handler(int sig) {
 	reload_zonefiles();
 }
 
+static int handle_tcp(int sock_fd) {
+	ssize_t read_bytes;
+	struct sockaddr_in remote_addr;
+	socklen_t remote_addr_len = sizeof(remote_addr);
+
+	for (;;) {
+		int remote_fd = accept(sock_fd, (struct sockaddr *) &remote_addr, &remote_addr_len);
+		if (remote_fd == -1) {
+			perror("accept");
+			continue;
+		}
+
+		
+		int pid = fork();
+		if (pid == -1) {
+			perror("fork");
+			close(remote_fd);
+			continue;
+		}
+		
+		if (pid != 0) {
+			close(remote_fd);
+			continue;
+		}
+		
+		char buffer[4096];
+		size_t ptr = 0;
+		size_t packet_start = 0;
+		
+		for (;;) {
+			read_bytes = recv(remote_fd, buffer + ptr, sizeof(buffer) - ptr, 0);
+			if (read_bytes == 0) break;
+			if (read_bytes < 0) {
+				perror("recv");
+				break;
+			}
+
+			ptr += read_bytes;
+			if (ptr == sizeof(buffer)) {
+				fprintf(stderr, "Failed to receive query: bigger than 4K, dropping...\n");
+				break;
+			}
+
+			if (ptr - packet_start < 2) continue;
+
+			uint16_t payload_len;
+			memcpy(&payload_len, buffer + packet_start, 2);
+			payload_len = ntohs(payload_len);
+			if (ptr - packet_start - 2 < payload_len) continue;
+
+			connection conn = {
+				.sockfd = remote_fd,
+				.remote_addr_len = 0
+			};
+			
+			handle_packet(&global_rrs, conn, buffer + packet_start + 2, payload_len, true);
+			packet_start += payload_len + 2;
+		}
+
+		if (close(remote_fd) == -1) {
+			perror("close");
+		}
+
+		break;
+	}
+
+	return 1;
+}
+
+static int handle_udp(int sock_fd) {
+	ssize_t read_bytes;
+	struct sockaddr_in remote_addr;
+	socklen_t remote_addr_len = sizeof(remote_addr);
+	char buffer[4096];
+
+	for (;;) {
+		remote_addr_len = sizeof(remote_addr);
+
+		if ((read_bytes = recvfrom(sock_fd, buffer, sizeof(buffer), MSG_WAITALL, (struct sockaddr *) &remote_addr, &remote_addr_len)) == -1) {
+			perror("recvfrom");
+			continue;
+		}
+
+		if (read_bytes <= 0) continue;
+		
+		connection conn = {
+			.sockfd = sock_fd,
+			.remote_addr = (struct sockaddr *) &remote_addr,
+			.remote_addr_len = remote_addr_len
+		};
+		
+		handle_packet(&global_rrs, conn, buffer, read_bytes, false);
+	}
+
+	return 1;
+}
+
 int main(int argc, char *argv[])
 {
 	int opt;
@@ -94,6 +191,8 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+	signal(SIGHUP, signal_handler);
+
 	struct sockaddr_in listen_addr = {
 		.sin_addr = addr,
 		.sin_family = AF_INET,
@@ -101,11 +200,26 @@ int main(int argc, char *argv[])
 	};
 
 	int local_addr_size = sizeof(listen_addr);
+	int pid = fork();
+	if (pid == -1) {
+		perror("fork");
+		return 1;
+	}
 
-	int sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
+	bool tcp = pid == 0;
+
+	int sock_fd = socket(AF_INET, tcp ? SOCK_STREAM : SOCK_DGRAM, 0);
 	if (sock_fd < 0) {
 		perror("socket");
 		return 1;
+	}
+
+	if (tcp) {
+		int yes = true;
+		if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
+			perror("setsockopt");
+			return 1;
+		}
 	}
 
 	if (bind(sock_fd, (struct sockaddr *) &listen_addr, local_addr_size) == -1) {
@@ -118,38 +232,11 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	if (!listen(sock_fd, BACKLOG)) {
+	if (tcp && listen(sock_fd, BACKLOG) != 0) {
 		perror("listen");
 		return 1;
 	}
 
-	signal(SIGHUP, signal_handler);
-	fprintf(stderr, "Listening on %s:%d\n", host, ntohs(listen_addr.sin_port));
-
-	int read_bytes;
-	struct sockaddr_in remote_addr;
-	socklen_t remote_addr_len = sizeof(remote_addr);
-
-	char buffer[4096];
-
-	for (;;) {
-		remote_addr_len = sizeof(remote_addr);
-
-		if ((read_bytes = recvfrom(sock_fd, buffer, sizeof(buffer), MSG_WAITALL, (struct sockaddr *) &remote_addr, &remote_addr_len)) == -1) {
-			perror("recvfrom");
-			continue;
-		}
-
-		if (read_bytes <= 0) continue;
-		
-		connection conn = {
-			.sockfd = sock_fd,
-			.remote_addr = (struct sockaddr *) &remote_addr,
-			.remote_addr_len = remote_addr_len
-		};
-		
-		handle_packet(&global_rrs, conn, buffer, read_bytes);
-	}
-
-	return 1;
+	fprintf(stderr, "Listening on %s:%d (%s)\n", host, ntohs(listen_addr.sin_port), tcp ? "TCP" : "UDP");
+	return tcp ? handle_tcp(sock_fd) : handle_udp(sock_fd);
 }

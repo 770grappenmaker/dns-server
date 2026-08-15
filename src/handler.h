@@ -19,7 +19,7 @@ typedef struct {
     socklen_t remote_addr_len;
 } connection;
 
-void connection_send(connection conn, char * buffer, size_t length);
-void handle_packet(rrs *rrs_from, connection conn, char * buffer, size_t length);
+void connection_send(connection conn, char * buffer, ssize_t length);
+void handle_packet(rrs *rrs_from, connection conn, char * buffer, ssize_t length, bool tcp);
 
 #endif
