@@ -80,6 +80,10 @@ answer query(rrs *rrs_from, question q) {
             additional_q.footer = additional_q_ftr;
             rrs_lookup(rrs_from, additional_q, &additional);
         }
+    } else {
+        question_footer soa_q_ftr = { .clazz = q.footer.clazz, .type = htons(6) }; 
+        question soa_q = { .name = q.name, .footer = soa_q_ftr };
+        rrs_lookup(rrs_from, soa_q, &answers);
     }
 
     answer a = { .answers = answers, .additional = additional, .rcode = RCODE_NOERROR };
