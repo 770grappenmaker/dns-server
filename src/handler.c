@@ -61,6 +61,7 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, ssize_t length
     // organise responses into sections
     String_Builder answers_section = {0};
     String_Builder additional_section = {0};
+    String_Builder authority_section = {0};
     String_Builder questions_section = {0};
     String_Builder response = {0};
     
@@ -68,6 +69,7 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, ssize_t length
     uint16_t rcode_ext = RCODE_NOERROR;
     uint16_t answers_cnt = 0;
     uint16_t additional_cnt = 0;
+    uint16_t authority_cnt = 0;
 
     for (int i = 0; i < qcnt; i++) {
         // read questions
@@ -112,15 +114,21 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, ssize_t length
         if (a.rcode != RCODE_NOERROR) {
             rcode = a.rcode;
             rcode_ext = a.rcode;
+            authority_cnt += a.authority.count;
+            da_foreach(rr, curr, &a.authority) write_and_free_rr(&authority_section, *curr);
         } else {
             answers_cnt += a.answers.count;
             additional_cnt += a.additional.count;
+            authority_cnt += a.authority.count;
             da_foreach(rr, curr, &a.answers) write_and_free_rr(&answers_section, *curr);
             da_foreach(rr, curr, &a.additional) write_and_free_rr(&additional_section, *curr);
-            da_free(a.answers);
-            da_free(a.additional);
+            da_foreach(rr, curr, &a.authority) write_and_free_rr(&authority_section, *curr);
         }
 
+        da_free(a.answers);
+        da_free(a.additional);
+        da_free(a.authority);
+        
         sb_free(sb);
         da_free(name);
     }
@@ -249,6 +257,7 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, ssize_t length
 
     RESP_OR_TRUNCATE(sb_to_sv(questions_section), resp_header.questions_cnt = hdr.questions_cnt);
     RESP_OR_TRUNCATE(sb_to_sv(answers_section), resp_header.answers_cnt = htons(answers_cnt));
+    RESP_OR_TRUNCATE(sb_to_sv(authority_section), resp_header.authority_cnt = htons(authority_cnt));
     RESP_OR_TRUNCATE(sb_to_sv(additional_section), resp_header.additional_cnt = htons(additional_cnt));
 
     // copy header into response
@@ -272,4 +281,5 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, ssize_t length
     sb_free(answers_section);
     sb_free(questions_section);
     sb_free(additional_section);
+    sb_free(authority_section);
 }

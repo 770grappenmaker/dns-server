@@ -8,6 +8,7 @@ typedef struct {
     uint8_t rcode;
     rrs answers;
     rrs additional;
+    rrs authority;
 } answer;
 
 answer query(rrs *rrs, question q);

@@ -117,6 +117,7 @@ int parse_addr_str_MX(zonefile_parser parser, String_Builder *rdata, String_View
     int var = atoi(sb.items); \
     \
     if (var <= 0 || var >= UINT16_MAX) { \
+        sb_free(sb); \
         printf_parser_error("Invalid SRV record " name "\n"); \
         return 1; \
     }
@@ -156,6 +157,7 @@ int parse_addr_str_SRV(zonefile_parser parser, String_Builder *rdata, String_Vie
     int var = strtol(sb.items, NULL, 10); \
     \
     if (errno || var < 0 || var >= UINT8_MAX) { \
+        sb_free(sb); \
         printf_parser_error("Invalid TLSA record " name "\n"); \
         return 1; \
     }
@@ -183,6 +185,70 @@ int parse_addr_str_TLSA(zonefile_parser parser, String_Builder *rdata, String_Vi
     return 0;
 }
 
+#define parse_soa_part(name, var) \
+    addr_str = sv_trim_left(addr_str); \
+    part_str = sv_chop_by_delim(&addr_str, ' '); \
+    \
+    sb.count = 0; \
+    sb_append_sv(&sb, part_str); \
+    sb_append_null(&sb); \
+    \
+    errno = 0; \
+    long long var = strtoll(sb.items, NULL, 10); \
+    \
+    if (errno || var < 0 || var >= UINT32_MAX) { \
+        sb_free(sb); \
+        printf_parser_error("Invalid SOA record " name "\n"); \
+        return 1; \
+    }
+
+int parse_addr_str_SOA(zonefile_parser parser, String_Builder *rdata, String_View addr_str) {
+    String_View part_str;
+    String_Builder sb = {0};
+
+    addr_str = sv_trim(addr_str);
+    String_View mname = sv_chop_by_delim(&addr_str, ' ');
+    addr_str = sv_trim(addr_str);
+    String_View rname = sv_chop_by_delim(&addr_str, ' ');
+
+    strings dest = {0};
+    parse_name_str(&dest, mname);
+    write_strings(rdata, &dest);
+    dest.count = 0;
+
+    parse_name_str(&dest, rname);
+    write_strings(rdata, &dest);
+
+    da_free(dest);
+
+    parse_soa_part("serial", serial);
+    parse_soa_part("refresh", refresh);
+    parse_soa_part("retry", retry);
+    parse_soa_part("expire", expire);
+    parse_soa_part("minimum", minimum);
+
+    write_long(rdata, serial);
+    write_long(rdata, refresh);
+    write_long(rdata, retry);
+    write_long(rdata, expire);
+    write_long(rdata, minimum);
+
+    sb_free(sb);
+    return 0;
+}
+
+int parse_addr_str_NS(zonefile_parser parser, String_Builder *rdata, String_View addr_str) {
+    addr_str = sv_trim(addr_str);
+    String_View name = sv_chop_by_delim(&addr_str, ' ');
+
+    strings dest = {0};
+    parse_name_str(&dest, name);
+    write_strings(rdata, &dest);
+
+    da_free(dest);
+    return 0;
+}
+
 int parse_addr_str(zonefile_parser parser, String_Builder *rdata, strings *cname, String_View addr_str, String_View type_str) {
     if (sv_eq(type_str, sv_from_cstr("A"))) return parse_addr_str_A(parser, rdata, addr_str);
     if (sv_eq(type_str, sv_from_cstr("AAAA"))) return parse_addr_str_AAAA(parser, rdata, addr_str);
@@ -191,6 +257,8 @@ int parse_addr_str(zonefile_parser parser, String_Builder *rdata, strings *cname
     if (sv_eq(type_str, sv_from_cstr("MX"))) return parse_addr_str_MX(parser, rdata, addr_str);
     if (sv_eq(type_str, sv_from_cstr("SRV"))) return parse_addr_str_SRV(parser, rdata, addr_str);
     if (sv_eq(type_str, sv_from_cstr("TLSA"))) return parse_addr_str_TLSA(parser, rdata, addr_str);
+    if (sv_eq(type_str, sv_from_cstr("SOA"))) return parse_addr_str_SOA(parser, rdata, addr_str);
+    if (sv_eq(type_str, sv_from_cstr("NS"))) return parse_addr_str_NS(parser, rdata, addr_str);
 
     printf_parser_error("Unsupported type '" SV_Fmt "'\n", SV_Arg(type_str));
     return 1;

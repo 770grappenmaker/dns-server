@@ -3,6 +3,9 @@
 ;$TTL = 86400
 ; Also supported: $ORIGIN = something., but this does not work fantastically yet
 
+; SOA needs to be at the top, for now
+example.org.  IN  SOA   ns.example.org. username.example.org. ( 2020091025 7200 3600 1209600 3600 )
+
 ; All sorts of records are supported!
 ; A/AAAA records
 example.org.                    IN  A       198.51.100.123
@@ -30,9 +33,10 @@ example.org.           IN    TXT    "google-site-verification=this is obviously 
 _dmarc.example.org.    IN    TXT    "v=DMARC1; p=quarantine"
 
 ; Wildcards are also supported!
-*.example.org.          IN    CNAME  fallback.example.org.
+; *.example.org.          IN    CNAME  fallback.example.org.
 fallback.example.org.   IN    CNAME  example.org.
 
+; Very large payloads may fall back to TCP!
 verylarge.example.org.           IN    TXT    "this domain name has a lot of large TXT records associated to it"
 verylarge.example.org. IN TXT "8WLewcFAx+taXO6nOG398CJo823WDt3GglBx+ElHrehHiiqO0pV+VK4uRydrf6l3"
 verylarge.example.org. IN TXT "t0SaEo01ehtGNxnHBDq1AE2chIH1eK9PQWJc+0sSdIPRpCjECzMXNxDff2VPAxk2"

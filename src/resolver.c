@@ -3,27 +3,36 @@
 
 #define MAX_CNAME_DEPTH 5
 
-#define return_empty(code) { \
-    answer a = { .answers = {0}, .additional = {0}, .rcode = code }; \
-    return a; \
-}
-
 answer query(rrs *rrs_from, question q) {
+    rrs answers = {0};
+    rrs additional = {0};
+    rrs authority = {0};
+
+    question_footer soa_q_ftr = { .clazz = q.footer.clazz, .type = htons(6) }; 
+    question soa_q = { .name = q.name, .footer = soa_q_ftr };
+    rrs_lookup(rrs_from, soa_q, &authority);
+
     if (!rrs_has_domain(rrs_from, q.name)) {
         printf("NXDOMAIN\n");
-        return_empty(RCODE_NXDOMAIN);
+
+        answer a = { .answers = {0}, .additional = {0}, .authority = authority, .rcode = RCODE_NXDOMAIN };
+        return a;
     }
 
     bool axfr = ntohs(q.footer.type) == 252;
-
-    rrs answers = {0};
-    rrs additional = {0};
     rrs_lookup(rrs_from, q, &answers);
     
     if (answers.count == 0) {
         printf("NO ANSWER\n");
-        return_empty(RCODE_NOERROR);
+
+        answer a = { .answers = {0}, .additional = {0}, .authority = authority, .rcode = RCODE_NOERROR };
+        return a;
     }
+
+    authority.count = 0;
+    da_free(authority);
+    rrs new_authority = {0};
+    authority = new_authority;
     
     if (!axfr) {
         // CNAME lowering
@@ -127,24 +136,30 @@ void rrs_lookup(rrs *rrs_from, question q, rrs *result) {
 
     bool is_cnamable = ntohs(q.footer.type) == 1 || ntohs(q.footer.type) == 28;
     bool wildcard_allowed = true;
+    bool soa = q.footer.type == htons(6);
 
     da_foreach(rr, curr, rrs_from) {
         if (q.footer.clazz != curr->footer.clazz) continue;
         if (q.footer.type != curr->footer.type && !(is_cnamable && ntohs(curr->footer.type) == 5)) continue;
-        if (!name_match_wildcard(q.name, curr->name)) continue;
 
-        bool was_wildcard = is_wildcard_pattern(curr->name);
-        if (!wildcard_allowed && was_wildcard) continue;
+        if (soa) {
+            if (!strings_endswith(q.name, curr->name)) continue;
+        } else {
+            if (!name_match_wildcard(q.name, curr->name)) continue;
 
-        if (!was_wildcard) {
-            if (wildcard_allowed) result->count = checkpoint;
-            wildcard_allowed = false;
+            bool was_wildcard = is_wildcard_pattern(curr->name);
+            if (!wildcard_allowed && was_wildcard) continue;
+
+            if (!was_wildcard) {
+                if (wildcard_allowed) result->count = checkpoint;
+                wildcard_allowed = false;
+            }
         }
 
         rr result_rr = *curr;
 
         strings dup = {0};
-        strings_dup_shallow(&dup, q.name);
+        strings_dup_shallow(&dup, soa ? curr->name : q.name);
         result_rr.name = dup;
 
         da_append(result, result_rr);
