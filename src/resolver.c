@@ -14,6 +14,8 @@ answer query(rrs *rrs_from, question q) {
         return_empty(RCODE_NXDOMAIN);
     }
 
+    bool axfr = ntohs(q.footer.type) == 252;
+
     rrs answers = {0};
     rrs additional = {0};
     rrs_lookup(rrs_from, q, &answers);
@@ -23,50 +25,52 @@ answer query(rrs *rrs_from, question q) {
         return_empty(RCODE_NOERROR);
     }
     
-    // CNAME lowering
-    rr last = answers.items[answers.count - 1];
-    int depth = 0;
-
-    while (ntohs(last.footer.type) == 5 && ++depth < MAX_CNAME_DEPTH) {
-        int old_count = answers.count;
-
-        question lower = q;
-        lower.name = last.cname;
+    if (!axfr) {
+        // CNAME lowering
+        rr last = answers.items[answers.count - 1];
+        int depth = 0;
         
-        rrs_lookup(rrs_from, lower, &answers);
-        last = answers.items[answers.count - 1];
+        while (ntohs(last.footer.type) == 5 && ++depth < MAX_CNAME_DEPTH) {
+            int old_count = answers.count;
         
-        if (old_count == answers.count) break;
-    }
-
-    // Additional section
-    int checkpoint = answers.count;
-    for (int i = 0; i < checkpoint; i++) {
-        rr curr = answers.items[i];
-        String_View rdata = curr.rdata;
-        int skip_cnt = -1;
-
-        // SRV record
-        if (curr.footer.type == ntohs(33)) skip_cnt = 3;
-
-        // MX record
-        if (curr.footer.type == ntohs(15)) skip_cnt = 1;
-
-        // not SRV or MX
-        if (skip_cnt == -1) continue;
-
-        sv_chop_left(&rdata, skip_cnt * 2);
-
-        strings temp_da = {0};
-        parse_name(&temp_da, &rdata);
-
-        question_footer additional_q_ftr = { .clazz = q.footer.clazz, .type = htons(1) };
-        question additional_q = { .name = temp_da, .footer = additional_q_ftr };
-        rrs_lookup(rrs_from, additional_q, &additional);
+            question lower = q;
+            lower.name = last.cname;
+            
+            rrs_lookup(rrs_from, lower, &answers);
+            last = answers.items[answers.count - 1];
+            
+            if (old_count == answers.count) break;
+        }
+    
+        // Additional section
+        int checkpoint = answers.count;
+        for (int i = 0; i < checkpoint; i++) {
+            rr curr = answers.items[i];
+            String_View rdata = curr.rdata;
+            int skip_cnt = -1;
         
-        additional_q_ftr.type = ntohs(28);
-        additional_q.footer = additional_q_ftr;
-        rrs_lookup(rrs_from, additional_q, &additional);
+            // SRV record
+            if (curr.footer.type == ntohs(33)) skip_cnt = 3;
+        
+            // MX record
+            if (curr.footer.type == ntohs(15)) skip_cnt = 1;
+        
+            // not SRV or MX
+            if (skip_cnt == -1) continue;
+        
+            sv_chop_left(&rdata, skip_cnt * 2);
+        
+            strings temp_da = {0};
+            parse_name(&temp_da, &rdata);
+        
+            question_footer additional_q_ftr = { .clazz = q.footer.clazz, .type = htons(1) };
+            question additional_q = { .name = temp_da, .footer = additional_q_ftr };
+            rrs_lookup(rrs_from, additional_q, &additional);
+            
+            additional_q_ftr.type = ntohs(28);
+            additional_q.footer = additional_q_ftr;
+            rrs_lookup(rrs_from, additional_q, &additional);
+        }
     }
 
     answer a = { .answers = answers, .additional = additional, .rcode = RCODE_NOERROR };
@@ -83,6 +87,17 @@ bool name_match_wildcard(strings to_match, strings pattern) {
     return strings_eq(to_match, pattern);
 }
 
+bool strings_endswith(strings to_match, strings suffix) {
+    if (to_match.count < suffix.count) return false;
+
+    for (size_t i = 0; i < suffix.count; i++) {
+        size_t j = to_match.count - suffix.count + i;
+        if (!sv_eq(to_match.items[j], suffix.items[i])) return false;
+    }
+
+    return true;
+}
+
 bool rrs_has_domain(rrs *rrs, strings name) {
     da_foreach(rr, curr, rrs) {
         if (name_match_wildcard(name, curr->name)) return true;
@@ -92,6 +107,22 @@ bool rrs_has_domain(rrs *rrs, strings name) {
 }
 
 void rrs_lookup(rrs *rrs_from, question q, rrs *result) {
+    // AXFR
+    if (q.footer.type == htons(252)) {
+        da_foreach(rr, curr, rrs_from) {
+            if (!strings_endswith(curr->name, q.name)) continue;
+
+            rr result_rr = *curr;
+            strings dup = {0};
+            strings_dup_shallow(&dup, curr->name);
+            result_rr.name = dup;
+
+            da_append(result, result_rr);
+        }
+
+        return;
+    }
+
     int checkpoint = result->count;
 
     bool is_cnamable = ntohs(q.footer.type) == 1 || ntohs(q.footer.type) == 28;

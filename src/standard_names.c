@@ -49,6 +49,7 @@ char * type_to_name(uint16_t type_host_byte_order) {
     if (type_host_byte_order == 33) return "SRV";
     if (type_host_byte_order == 52) return "TLSA";
     if (type_host_byte_order == 41) return "OPT";
+    if (type_host_byte_order == 252) return "AXFR";
     
     return "??"; 
 }
@@ -58,6 +59,7 @@ uint16_t sv_to_type(String_View sv) {
     if (sv_eq(sv, sv_from_cstr("SRV"))) return 33;
     if (sv_eq(sv, sv_from_cstr("TLSA"))) return 52;
     if (sv_eq(sv, sv_from_cstr("OPT"))) return 41;
+    if (sv_eq(sv, sv_from_cstr("AXFR"))) return 252;
 
     for (int i = 0; i < BASIC_TYPE_NAMES_CNT; i++) {
         if (sv_eq(sv, sv_from_cstr(BASIC_TYPE_NAMES[i]))) return i + 1;
