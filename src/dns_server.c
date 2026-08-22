@@ -8,6 +8,7 @@
 
 #include "handler.h"
 #include "zone.h"
+#include "acl.h"
 
 #define NOB_IMPLEMENTATION
 #include <nob.h>
@@ -16,6 +17,7 @@
 
 extern char * optarg;
 static zonefiles global_zonefiles = {0};
+static cidrs global_acl = {0};
 static rrs global_rrs = {0};
 
 static void reload_zonefiles() {
@@ -52,10 +54,38 @@ static void signal_handler(int sig) {
 	reload_zonefiles();
 }
 
-static int handle_tcp(int sock_fd) {
-	ssize_t read_bytes;
-	struct sockaddr_in remote_addr;
+#define common_decls ssize_t read_bytes; \
+	char remote_addr[sizeof(struct sockaddr_in6)]; \
 	socklen_t remote_addr_len = sizeof(remote_addr);
+
+#define init_conn(fd) \
+	struct sockaddr *as_addr = (struct sockaddr *) remote_addr; \
+	sa_family_t family = as_addr->sa_family; \
+	char * remote_addr_bytes; \
+	size_t remote_addr_bytes_len; \
+	switch (family) { \
+		case AF_INET: \
+			remote_addr_bytes = (char *) &(((struct sockaddr_in *) remote_addr)->sin_addr); \
+			remote_addr_bytes_len = 4; \
+			break; \
+			case AF_INET6: \
+			remote_addr_bytes = (char *) &(((struct sockaddr_in6 *) remote_addr)->sin6_addr); \
+			remote_addr_bytes_len = 16; \
+			break; \
+		default: \
+			assert(false); \
+			break; \
+	} \
+	connection conn = { \
+		.sockfd = fd, \
+		.remote_addr = (struct sockaddr *) &remote_addr, \
+		.remote_addr_len = remote_addr_len, \
+		.remote_addr_bytes = remote_addr_bytes, \
+		.remote_addr_bytes_len = remote_addr_bytes_len \
+	};
+
+static int handle_tcp(int sock_fd) {
+	common_decls;
 
 	for (;;) {
 		int remote_fd = accept(sock_fd, (struct sockaddr *) &remote_addr, &remote_addr_len);
@@ -63,7 +93,6 @@ static int handle_tcp(int sock_fd) {
 			perror("accept");
 			continue;
 		}
-
 		
 		int pid = fork();
 		if (pid == -1) {
@@ -85,7 +114,7 @@ static int handle_tcp(int sock_fd) {
 			read_bytes = recv(remote_fd, buffer + ptr, sizeof(buffer) - ptr, 0);
 			if (read_bytes == 0) break;
 			if (read_bytes < 0) {
-				perror("recv");
+				if (errno != EBADF) perror("recv");
 				break;
 			}
 
@@ -102,17 +131,15 @@ static int handle_tcp(int sock_fd) {
 			payload_len = ntohs(payload_len);
 			if (ptr - packet_start - 2 < payload_len) continue;
 
-			connection conn = {
-				.sockfd = remote_fd,
-				.remote_addr_len = 0
-			};
-			
-			handle_packet(&global_rrs, conn, buffer + packet_start + 2, payload_len, true);
+			init_conn(remote_fd);
+			conn.tcp = true;
+
+			handle_packet(&global_rrs, conn, buffer + packet_start + 2, payload_len, &global_acl);
 			packet_start += payload_len + 2;
 		}
 
 		if (close(remote_fd) == -1) {
-			perror("close");
+			if (errno != EBADF) perror("close");
 		}
 
 		break;
@@ -122,9 +149,7 @@ static int handle_tcp(int sock_fd) {
 }
 
 static int handle_udp(int sock_fd) {
-	ssize_t read_bytes;
-	struct sockaddr_in remote_addr;
-	socklen_t remote_addr_len = sizeof(remote_addr);
+	common_decls;
 	char buffer[4096];
 
 	for (;;) {
@@ -136,14 +161,10 @@ static int handle_udp(int sock_fd) {
 		}
 
 		if (read_bytes <= 0) continue;
-		
-		connection conn = {
-			.sockfd = sock_fd,
-			.remote_addr = (struct sockaddr *) &remote_addr,
-			.remote_addr_len = remote_addr_len
-		};
-		
-		handle_packet(&global_rrs, conn, buffer, read_bytes, false);
+
+		init_conn(sock_fd);		
+		conn.tcp = false;
+		handle_packet(&global_rrs, conn, buffer, read_bytes, &global_acl);
 	}
 
 	return 1;
@@ -153,14 +174,14 @@ int main(int argc, char *argv[])
 {
 	int opt;
 	char *host = "0.0.0.0";
-	int port = 0;
+	int port = 53;
 
-	while ((opt = getopt(argc, argv, "h:p:z:")) != -1)
+	while ((opt = getopt(argc, argv, "h:p:z:a:")) != -1)
 	{
 		switch (opt)
 		{
 		case 'h':
-			host = optarg;
+			host = strdup(optarg);
 			break;
 		case 'p':
 			port = atoi(optarg);
@@ -171,8 +192,11 @@ int main(int argc, char *argv[])
 			da_append(&global_zonefiles, zf);
 
 			break;
+		case 'a':
+			load_acls(&global_acl, optarg);
+			break;
 		default:
-			fprintf(stderr, "Usage: %s [-h host] [-p port] [-z zonefile]\n",
+			fprintf(stderr, "Usage: %s [-h host] [-p port] [-z zonefile] [-a acl]\n",
 					argv[0]);
 			exit(1);
 		}
@@ -182,7 +206,7 @@ int main(int argc, char *argv[])
 
 	struct in_addr addr;
 	if (inet_pton(AF_INET, host, &addr) != 1) {
-		perror("inet_pton");
+		printf("Failed to parse requested bind address: %s\n", host);
 		return 1;
 	}
 

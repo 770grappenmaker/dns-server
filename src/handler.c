@@ -8,7 +8,7 @@
 #define MIN(x, y) (((x) < (y) ? (x) : (y)))
 
 void connection_send(connection conn, char * buffer, ssize_t length) {
-    if (conn.remote_addr_len != 0) {
+    if (!conn.tcp) {
         if (sendto(conn.sockfd, buffer, length, 0, conn.remote_addr, conn.remote_addr_len) == -1) {
             perror("sendto");
         }
@@ -26,7 +26,7 @@ void connection_send(connection conn, char * buffer, ssize_t length) {
     }
 }
 
-void handle_packet(rrs *rrs_from, connection conn, char * buffer, ssize_t length, bool tcp) {
+void handle_packet(rrs *rrs_from, connection conn, char * buffer, ssize_t length, cidrs *acl) {
     // Initial header parsing and checks
     String_View sv = nob_sv_from_parts(buffer, length);
     
@@ -87,6 +87,13 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, ssize_t length
 
         String_View ftr_sv = sv_chop_left(&sv, sizeof(ftr));
         memcpy(&ftr, ftr_sv.data, sizeof(ftr));
+
+        if (ftr.type == htons(252) && !is_allowed(acl, conn.remote_addr_bytes, conn.remote_addr_bytes_len)) {
+            // TODO: consider whether we might want to send RCODE_REFUSED
+            sb_free(name);
+            if (conn.tcp) close(conn.sockfd);
+            goto free_end; // do not reply to AXFR when not allowed
+        }
         
         question q = {
             .name = name,
@@ -242,12 +249,12 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, ssize_t length
         0
     };
 
-    response.count += sizeof(resp_header) + (tcp ? 2 : 0);
+    response.count += sizeof(resp_header) + (conn.tcp ? 2 : 0);
 
     // truncation handling while writing sections
     // TODO: individual RRS and TCP
     #define RESP_OR_TRUNCATE(sv, block) { \
-        if (!tcp && response.count + sv.count >= mtu) { \
+        if (!conn.tcp && response.count + sv.count >= mtu) { \
             resp_header.flags |= htons(1 << 9); \
         } else { \
             sb_append_sv(&response, (sv)); \
@@ -261,10 +268,10 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, ssize_t length
     RESP_OR_TRUNCATE(sb_to_sv(additional_section), resp_header.additional_cnt = htons(additional_cnt));
 
     // copy header into response
-    memcpy(response.items + (tcp ? 2 : 0), &resp_header, sizeof(resp_header));
+    memcpy(response.items + (conn.tcp ? 2 : 0), &resp_header, sizeof(resp_header));
 
     // copy size into response if tcp and send
-    if (tcp) {
+    if (conn.tcp) {
         uint16_t len = response.count - 2;
         len = htons(len);
         memcpy(response.items, &len, 2);
