@@ -11,7 +11,7 @@ typedef struct {
 } cidr;
 
 typedef struct {
-    cidr *items;
+    cidr **items;
     size_t count;
     size_t capacity;
 } cidrs;

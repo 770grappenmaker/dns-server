@@ -388,11 +388,17 @@ int end_record_parse(zonefile_parser parser) {
         return 1;
     }
 
-    String_Builder new_sb = {0};
-    *parser.content_buffer = new_sb;
+    if (parser.content_buffer->count > 0) {
+        sb_append(&parser.file->used_buffers, parser.content_buffer->items);
+        String_Builder new_sb = {0};
+        *parser.content_buffer = new_sb;
+    }
 
-    String_Builder new_sb2 = {0};
-    *parser.comment_buffer = new_sb2;
+    if (parser.comment_buffer->count > 0) {
+        sb_append(&parser.file->used_buffers, parser.comment_buffer->items);
+        String_Builder new_sb = {0};
+        *parser.comment_buffer = new_sb;
+    }
 
     return 0;
 }
@@ -469,7 +475,12 @@ void reset_zonefile(zonefile *file) {
         da_free(curr->cname);
         free(curr->rdata.data);
     }
+
+    da_foreach(void *, curr, &file->used_buffers) {
+        free(*curr);
+    }
     
+    file->used_buffers.count = 0;
     file->rrs.count = 0;
     file->origin.count = 0;
 }

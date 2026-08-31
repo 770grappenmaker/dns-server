@@ -13,10 +13,17 @@ typedef struct {
 } rrs;
 
 typedef struct {
+    void **items;
+    size_t count;
+    size_t capacity;
+} buffers;
+
+typedef struct {
     rrs rrs;
     uint32_t ttl;
     strings origin;
     char * loaded_path;
+    buffers used_buffers;
 } zonefile;
 
 typedef struct {

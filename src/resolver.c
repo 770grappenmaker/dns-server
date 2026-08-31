@@ -3,37 +3,36 @@
 
 #define MAX_CNAME_DEPTH 5
 
+void fetch_authority(rrs *into, rrs *rrs_from, question q) {
+    question_footer soa_q_ftr = { .clazz = q.footer.clazz, .type = htons(6) }; 
+    question soa_q = { .name = q.name, .footer = soa_q_ftr };
+    rrs_lookup(rrs_from, soa_q, into);
+}
+
 answer query(rrs *rrs_from, question q) {
     rrs answers = {0};
     rrs additional = {0};
     rrs authority = {0};
 
-    question_footer soa_q_ftr = { .clazz = q.footer.clazz, .type = htons(6) }; 
-    question soa_q = { .name = q.name, .footer = soa_q_ftr };
-    rrs_lookup(rrs_from, soa_q, &authority);
-
     if (!rrs_has_domain(rrs_from, q.name)) {
         printf("NXDOMAIN\n");
 
+        fetch_authority(&authority, rrs_from, q);
         answer a = { .answers = {0}, .additional = {0}, .authority = authority, .rcode = RCODE_NXDOMAIN };
         return a;
     }
-
+    
     bool axfr = ntohs(q.footer.type) == 252;
     rrs_lookup(rrs_from, q, &answers);
     
     if (answers.count == 0) {
         printf("NO ANSWER\n");
-
+        
+        fetch_authority(&authority, rrs_from, q);
         answer a = { .answers = {0}, .additional = {0}, .authority = authority, .rcode = RCODE_NOERROR };
         return a;
     }
 
-    authority.count = 0;
-    da_free(authority);
-    rrs new_authority = {0};
-    authority = new_authority;
-    
     if (!axfr) {
         // CNAME lowering
         rr last = answers.items[answers.count - 1];

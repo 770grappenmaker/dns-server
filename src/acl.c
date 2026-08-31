@@ -5,7 +5,8 @@
 #include <unistd.h>
 
 bool is_allowed(cidrs *allowlist, char *addr, size_t addr_len) {
-    da_foreach(cidr, c, allowlist) {
+    da_foreach(cidr *, c_ptr, allowlist) {
+        cidr *c = *c_ptr;
         if (addr_len != c->addr_len) continue;
         
         uint8_t prefix = c->prefix_len;
@@ -80,7 +81,7 @@ int load_acl_line(cidrs *dest, String_View line) {
         c->addr_len = 4;
         parse_prefix_len(c, line, 32);
 
-        da_append(dest, *c);
+        da_append(dest, c);
     } else if (inet_pton(AF_INET6, addr_str_temp.items, &ipv6) == 1) {
         char *ptr = malloc(16);
         memcpy(ptr, &ipv6, 16);
@@ -90,7 +91,7 @@ int load_acl_line(cidrs *dest, String_View line) {
         c->addr_len = 16;
         parse_prefix_len(c, line, 128);
 
-        da_append(dest, *c);
+        da_append(dest, c);
     } else {
         res = 1;
         fprintf(stderr, "Failed to parse address part of CIDR: " SV_Fmt "\n",

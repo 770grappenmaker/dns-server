@@ -173,7 +173,8 @@ static int handle_udp(int sock_fd) {
 int main(int argc, char *argv[])
 {
 	int opt;
-	char *host = "0.0.0.0";
+	char *host = NULL;
+	char *host_free = NULL;
 	int port = 53;
 
 	while ((opt = getopt(argc, argv, "h:p:z:a:")) != -1)
@@ -181,7 +182,8 @@ int main(int argc, char *argv[])
 		switch (opt)
 		{
 		case 'h':
-			host = strdup(optarg);
+			if (host_free != NULL) free(host);
+			host_free = strdup(optarg);
 			break;
 		case 'p':
 			port = atoi(optarg);
@@ -203,6 +205,7 @@ int main(int argc, char *argv[])
 	}
 
 	reload_zonefiles();
+	host = host_free != NULL ? host_free : "127.0.0.1";
 
 	struct in_addr addr;
 	if (inet_pton(AF_INET, host, &addr) != 1) {
@@ -262,5 +265,6 @@ int main(int argc, char *argv[])
 	}
 
 	fprintf(stderr, "Listening on %s:%d (%s)\n", host, ntohs(listen_addr.sin_port), tcp ? "TCP" : "UDP");
+	free(host_free);
 	return tcp ? handle_tcp(sock_fd) : handle_udp(sock_fd);
 }

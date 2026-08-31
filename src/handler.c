@@ -121,16 +121,14 @@ void handle_packet(rrs *rrs_from, connection conn, char * buffer, ssize_t length
         if (a.rcode != RCODE_NOERROR) {
             rcode = a.rcode;
             rcode_ext = a.rcode;
-            authority_cnt += a.authority.count;
-            da_foreach(rr, curr, &a.authority) write_and_free_rr(&authority_section, *curr);
-        } else {
-            answers_cnt += a.answers.count;
-            additional_cnt += a.additional.count;
-            authority_cnt += a.authority.count;
-            da_foreach(rr, curr, &a.answers) write_and_free_rr(&answers_section, *curr);
-            da_foreach(rr, curr, &a.additional) write_and_free_rr(&additional_section, *curr);
-            da_foreach(rr, curr, &a.authority) write_and_free_rr(&authority_section, *curr);
         }
+
+        answers_cnt += a.answers.count;
+        additional_cnt += a.additional.count;
+        authority_cnt += a.authority.count;
+        da_foreach(rr, curr, &a.answers) write_and_free_rr(&answers_section, *curr);
+        da_foreach(rr, curr, &a.additional) write_and_free_rr(&additional_section, *curr);
+        da_foreach(rr, curr, &a.authority) write_and_free_rr(&authority_section, *curr);
 
         da_free(a.answers);
         da_free(a.additional);
