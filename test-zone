@@ -15,6 +15,9 @@ example.org.                    IN  AAAA    2001:db8:cafe:babe::1
 ; CNAME records
 test.example.org.               IN  CNAME   mx.example.org.
 
+; DNAME records
+example.com                     IN  DNAME   example.org
+
 ; MX records
 example.org.                    IN  MX  10  mx.example.org.
 

@@ -254,6 +254,7 @@ int parse_addr_str(zonefile_parser parser, String_Builder *rdata, strings *cname
     if (sv_eq(type_str, sv_from_cstr("AAAA"))) return parse_addr_str_AAAA(parser, rdata, addr_str);
     if (sv_eq(type_str, sv_from_cstr("TXT"))) return parse_addr_str_TXT(parser, rdata, addr_str);
     if (sv_eq(type_str, sv_from_cstr("CNAME"))) return parse_addr_str_CNAME(parser, rdata, cname, addr_str);
+    if (sv_eq(type_str, sv_from_cstr("DNAME"))) return parse_addr_str_CNAME(parser, rdata, cname, addr_str);
     if (sv_eq(type_str, sv_from_cstr("MX"))) return parse_addr_str_MX(parser, rdata, addr_str);
     if (sv_eq(type_str, sv_from_cstr("SRV"))) return parse_addr_str_SRV(parser, rdata, addr_str);
     if (sv_eq(type_str, sv_from_cstr("TLSA"))) return parse_addr_str_TLSA(parser, rdata, addr_str);

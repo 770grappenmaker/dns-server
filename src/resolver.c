@@ -34,8 +34,24 @@ answer query(rrs *rrs_from, question q) {
     }
 
     if (!axfr) {
-        // CNAME lowering
+        // DNAME lowering
         rr last = answers.items[answers.count - 1];
+
+        if (ntohs(last.footer.type) == 39) {
+            strings lower_q_name = {0};
+            da_append_many(&lower_q_name, q.name.items, q.name.count - last.cname.count);
+            da_append_da(&lower_q_name, last.cname);
+
+            // TODO: instead of doing it like this, give the stub CNAME first
+            question lower = q;
+            lower.name = lower_q_name;
+
+            rrs_lookup(rrs_from, lower, &answers);
+            last = answers.items[answers.count - 1];
+            da_free(lower_q_name);
+        }
+
+        // CNAME lowering
         int depth = 0;
         
         while (ntohs(last.footer.type) == 5 && ++depth < MAX_CNAME_DEPTH) {
@@ -113,6 +129,7 @@ bool strings_endswith(strings to_match, strings suffix) {
 bool rrs_has_domain(rrs *rrs, strings name) {
     da_foreach(rr, curr, rrs) {
         if (name_match_wildcard(name, curr->name)) return true;
+        if (ntohs(curr->footer.type) == 39 && strings_endswith(name, curr->name)) return true;
     }
 
     return false;
@@ -143,9 +160,12 @@ void rrs_lookup(rrs *rrs_from, question q, rrs *result) {
 
     da_foreach(rr, curr, rrs_from) {
         if (q.footer.clazz != curr->footer.clazz) continue;
-        if (q.footer.type != curr->footer.type && !(is_cnamable && ntohs(curr->footer.type) == 5)) continue;
 
-        if (soa) {
+        uint16_t ftr_type = ntohs(curr->footer.type);
+        if (q.footer.type != curr->footer.type && !(is_cnamable && (ftr_type == 5 || ftr_type == 39))) continue;
+
+        bool soa_or_dname = soa || ftr_type == 39;
+        if (soa_or_dname) {
             if (!strings_endswith(q.name, curr->name)) continue;
         } else {
             if (!name_match_wildcard(q.name, curr->name)) continue;
@@ -162,7 +182,7 @@ void rrs_lookup(rrs *rrs_from, question q, rrs *result) {
         rr result_rr = *curr;
 
         strings dup = {0};
-        strings_dup_shallow(&dup, soa ? curr->name : q.name);
+        strings_dup_shallow(&dup, soa_or_dname ? curr->name : q.name);
         result_rr.name = dup;
 
         da_append(result, result_rr);
