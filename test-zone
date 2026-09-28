@@ -36,8 +36,9 @@ example.org.           IN    TXT    "google-site-verification=this is obviously 
 _dmarc.example.org.    IN    TXT    "v=DMARC1; p=quarantine"
 
 ; Wildcards are also supported!
-; *.example.org.          IN    CNAME  fallback.example.org.
+*.example.org.          IN    CNAME  fallback.example.org.
 fallback.example.org.   IN    CNAME  example.org.
+nowild.example.org      IN    TXT    "test"
 
 ; Very large payloads may fall back to TCP!
 verylarge.example.org.           IN    TXT    "this domain name has a lot of large TXT records associated to it"

@@ -154,7 +154,7 @@ void rrs_lookup(rrs *rrs_from, question q, rrs *result) {
 
     int checkpoint = result->count;
 
-    bool is_cnamable = ntohs(q.footer.type) == 1 || ntohs(q.footer.type) == 28;
+    bool is_cnamable = ntohs(q.footer.type) != 5;
     bool wildcard_allowed = true;
     bool soa = q.footer.type == htons(6);
 
@@ -162,9 +162,8 @@ void rrs_lookup(rrs *rrs_from, question q, rrs *result) {
         if (q.footer.clazz != curr->footer.clazz) continue;
 
         uint16_t ftr_type = ntohs(curr->footer.type);
-        if (q.footer.type != curr->footer.type && !(is_cnamable && (ftr_type == 5 || ftr_type == 39))) continue;
-
         bool soa_or_dname = soa || ftr_type == 39;
+
         if (soa_or_dname) {
             if (!strings_endswith(q.name, curr->name)) continue;
         } else {
@@ -174,11 +173,16 @@ void rrs_lookup(rrs *rrs_from, question q, rrs *result) {
             if (!wildcard_allowed && was_wildcard) continue;
 
             if (!was_wildcard) {
-                if (wildcard_allowed) result->count = checkpoint;
+                if (wildcard_allowed) {
+                    for (size_t j = checkpoint; j < result->count; j++) da_free(result->items[j].name);
+                    result->count = checkpoint;
+                }
+
                 wildcard_allowed = false;
             }
         }
 
+        if (q.footer.type != curr->footer.type && !(is_cnamable && (ftr_type == 5 || ftr_type == 39))) continue;
         rr result_rr = *curr;
 
         strings dup = {0};

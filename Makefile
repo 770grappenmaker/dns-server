@@ -1,4 +1,4 @@
-CFLAGS := -Wall -Wextra -Wno-pointer-sign -Wno-discarded-qualifiers -Wno-sign-compare
+CFLAGS := -Wall -Wextra -Wno-pointer-sign -Wno-discarded-qualifiers -Wno-sign-compare -O2
 CC := gcc
 LDFLAGS := -Iinclude
 
