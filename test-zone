@@ -127,3 +127,5 @@ verylarge.example.org. IN TXT "TNeXN8fm/g7RrsqxocIs9JtZzjSHOY7T7fpnNVET4FGPoQNDX
 verylarge.example.org. IN TXT "Qrkr0WK+4X1iewlGsIVQze1EnAM2Wm6nq9v5nIlf+YCS+7+3RyByR2iP78vgg1fL"
 verylarge.example.org. IN TXT "n10aEnpOzJdlVNtRPlXFjVZSyUPF4UlHVRfm+Tu/cSNNzbotLE4Np4yeNZd3skzy"
 verylarge.example.org. IN TXT "lXP7hd+XucII2VVOT6FTk9nS6oHyyDxacZrtEVRH2CJLuJ24woFsid7nUIrk6Ptl"
+
+4.3.2.1.in-addr.arpa     IN  PTR     test.ptr.
